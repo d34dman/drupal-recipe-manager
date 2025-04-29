@@ -29,32 +29,23 @@ composer global require d34dman/drupal-recipe-manager
 
 2. Create a configuration file in your Drupal project root:
 
+An example file for a ddev based project is as follows.
+
 ```yaml
 # drupal-recipe-manager.yaml
+# Directories to scan for recipes
 scanDirs:
-  - contrib
-  - custom
-
-logsDir: logs
-
+  - recipes
+# Custom commands for recipe management
 commands:
-  drush:
-    description: "Run Drush recipe command"
-    command: "ddev drush recipe ${folder_basename}"
-
-variables:
-  - name: "folder_relative"
-    input: "${folder}"
-    search: "^.*?recipes/"
-    replace: ""
-  - name: "recipeName"
-    input: "${folder_basename}"
-    search: "-"
-    replace: "_"
+  ddevRecipe:
+    description: "🚀 Run Drush recipe command using ddev"
+    command: "ddev drush recipe ../${folder}"
+    requiresFolder: true
+logsDir: recipes/logs
 ```
 
 ## Usage
-
 
 ### Interactive Mode
 
