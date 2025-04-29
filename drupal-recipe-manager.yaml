@@ -1,0 +1,27 @@
+# Recipe Management System Configuration
+
+# Directories to scan for recipes
+scanDirs:
+  - ../recipes
+
+# Custom commands for recipe management
+commands:
+  ddevRecipe:
+    description: "🚀 Run Drush recipe command using ddev"
+    command: "ddev drush recipe ${ddevRecipePath}"
+    requiresFolder: true
+  # drushRecipe:
+  #   description: "🚀 Run Drush recipe command"
+  #   command: "drush recipe ${folder}"
+  #   requiresFolder: true  
+logsDir: ../
+# Variable transformations
+variables:
+  - name: "ddevRecipePath"
+    input: "${folder}"
+    search: "^.*?recipes/"
+    replace: "../recipes/"
+  - name: "recipeName"
+    input: "${folder_basename}"
+    search: "-"
+    replace: "_"

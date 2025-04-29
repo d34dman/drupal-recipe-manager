@@ -1,0 +1,18 @@
+parameters:
+    level: 8
+    paths:
+        - src/
+    excludePaths:
+        - tests/
+    checkMissingIterableValueType: false
+    ignoreErrors:
+        - '#PHPDoc tag @var#'
+        - '#PHPDoc tag @param#'
+        - '#PHPDoc tag @return#'
+        - '#PHPDoc tag @throws#'
+        - '#PHPDoc tag @method#'
+        - '#PHPDoc tag @property#'
+        - '#PHPDoc tag @property-read#'
+        - '#PHPDoc tag @property-write#'
+    bootstrapFiles:
+        - vendor/autoload.php 
