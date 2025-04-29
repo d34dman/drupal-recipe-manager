@@ -55,22 +55,23 @@ variables:
 
 ## Usage
 
+
+### Interactive Mode
+
+```bash
+vendor/bin/drupal-recipe-manager recipe
+```
+
 ### List Available Recipes
 
 ```bash
-bin/drupal-recipe-manager recipe --list
+vendor/bin/drupal-recipe-manager recipe --list
 ```
 
 ### Run a Specific Recipe
 
 ```bash
-bin/drupal-recipe-manager recipe [recipe-name]
-```
-
-### Interactive Mode
-
-```bash
-bin/drupal-recipe-manager recipe
+vendor/bin/drupal-recipe-manager recipe [recipe-name]
 ```
 
 ## Configuration
