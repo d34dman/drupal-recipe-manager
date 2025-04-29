@@ -3,6 +3,7 @@
 # Directories to scan for recipes
 scanDirs:
   - ../recipes
+  - ../web/core/recipes
 
 # Custom commands for recipe management
 commands:

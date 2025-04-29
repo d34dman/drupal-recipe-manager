@@ -11,6 +11,7 @@ use Symfony\Component\Yaml\Yaml;
 use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use D34dman\DrupalRecipeManager\Command\RecipeCommand;
+use D34dman\DrupalRecipeManager\Command\RecipeDependencyCommand;
 
 class Application extends BaseApplication
 {
@@ -28,6 +29,7 @@ class Application extends BaseApplication
 
         // Register commands
         $this->add(new RecipeCommand($this->config, $this->logsDir));
+        $this->add(new RecipeDependencyCommand($this->config));
     }
 
     private function loadConfig(): void
