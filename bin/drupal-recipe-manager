@@ -5,7 +5,30 @@ declare(strict_types=1);
 
 use D34dman\DrupalRecipeManager\Application;
 
-require __DIR__ . "/../vendor/autoload.php";
+// Try to load autoloader from different possible locations
+$autoloaders = [
+    // Local development
+    __DIR__ . "/../vendor/autoload.php",
+    // Installed as dependency
+    __DIR__ . "/../../../autoload.php",
+    // Global installation
+    __DIR__ . "/../autoload.php",
+];
+
+$autoloader = null;
+foreach ($autoloaders as $path) {
+    if (file_exists($path)) {
+        $autoloader = $path;
+        break;
+    }
+}
+
+if ($autoloader === null) {
+    fwrite(STDERR, "Could not find autoloader. Please run 'composer install'.\n");
+    exit(1);
+}
+
+require $autoloader;
 
 $application = new Application();
 $application->run(); 

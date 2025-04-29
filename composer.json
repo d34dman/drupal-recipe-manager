@@ -40,7 +40,8 @@
         "sort-packages": true,
         "allow-plugins": {
             "phpstan/extension-installer": true
-        }
+        },
+        "bin-dir": "bin"
     },
     "scripts": {
         "test": "phpunit",
