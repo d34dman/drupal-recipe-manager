@@ -21,10 +21,10 @@ A CLI tool for managing and executing Drupal recipes.
 
 ## Installation
 
-1. Install globally using Composer:
+1. Install using Composer:
 
 ```bash
-composer global require d34dman/drupal-recipe-manager
+composer require --dev d34dman/drupal-recipe-manager
 ```
 
 2. Create a configuration file in your Drupal project root:
