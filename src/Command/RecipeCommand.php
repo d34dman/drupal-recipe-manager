@@ -28,7 +28,7 @@ class RecipeCommand extends Command
 
     public function __construct(array $config, string $logsDir)
     {
-        parent::__construct();
+        parent::__construct(self::$defaultName);
         $this->config = $config;
         $this->logsDir = $logsDir;
         $this->filesystem = new Filesystem();
@@ -37,6 +37,8 @@ class RecipeCommand extends Command
     protected function configure(): void
     {
         $this
+            ->setName(self::$defaultName)
+            ->setDescription(self::$defaultDescription)
             ->addArgument("recipe", InputArgument::OPTIONAL, "The recipe to run")
             ->addOption("command", "c", InputOption::VALUE_REQUIRED, "The command to run (defaults to first configured command)")
             ->addOption("list", "l", InputOption::VALUE_NONE, "List available recipes");
