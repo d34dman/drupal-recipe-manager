@@ -70,6 +70,18 @@ vendor/bin/drupal-recipe-manager recipe --list
 vendor/bin/drupal-recipe-manager recipe [recipe-name]
 ```
 
+### Show dependency tree in interactive mode
+
+```bash
+vendor/bin/drupal-recipe-manager recipe:dependencies
+```
+
+### Show dependency tree for a specific recipe
+
+```bash
+vendor/bin/drupal-recipe-manager recipe:dependencies [recipe-name]
+```
+
 ## Configuration
 
 ### Directories
@@ -83,9 +95,15 @@ Define custom commands in the configuration file:
 
 ```yaml
 commands:
-  drush:
+  ddevDrush:
     description: "Run Drush recipe command"
-    command: "ddev drush recipe ${folder_basename}"
+    command: "ddev drush recipe ../${folder}"
+  localDrush:
+    description: "Run Drush recipe command"
+    command: "ddev drush recipe ${folder}"  
+  php:
+    description: "Run Drush recipe command"
+    command: "php core/scripts/drupal recipe ${folder}"  
 ```
 
 ### Variables
