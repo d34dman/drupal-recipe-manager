@@ -21,7 +21,6 @@ jobs:
       uses: shivammathur/setup-php@v2
       with:
         php-version: ${{ matrix.php }}
-        coverage: xdebug
         tools: composer:v2
 
     - name: Install dependencies
@@ -35,14 +34,6 @@ jobs:
 
     - name: Run PHP CS Fixer
       run: composer cs-check
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: coverage.xml
-        directory: ./
-        fail_ci_if_error: true
 
   security:
     runs-on: ubuntu-latest
