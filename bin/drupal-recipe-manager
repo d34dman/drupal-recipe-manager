@@ -31,4 +31,4 @@ if ($autoloader === null) {
 require $autoloader;
 
 $application = new Application();
-$application->run(); 
+$application->run();
