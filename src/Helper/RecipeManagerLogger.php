@@ -94,7 +94,7 @@ class RecipeManagerLogger
         if (0 === $exitCode) {
             $recipeTreeFinder = new RecipeTreeFinder($this->config);
             $visited = [$recipe => true]; // Track visited recipes to avoid infinite loops
-            
+
             $this->updateDependentRecipesStatus(
                 $recipeTreeFinder,
                 $recipePath,
@@ -116,12 +116,12 @@ class RecipeManagerLogger
     /**
      * Recursively update status for all dependent recipes.
      *
-     * @param RecipeTreeFinder $recipeTreeFinder The recipe tree finder instance
-     * @param string $recipePath The path to the current recipe
-     * @param string $parentRecipe The name of the recipe that enabled this one
-     * @param string $commandName The command name that was executed
-     * @param array<string, array<string, mixed>> $status The current status array
-     * @param array<string, bool> $visited Set of visited recipe names to avoid infinite loops
+     * @param RecipeTreeFinder                    $recipeTreeFinder The recipe tree finder instance
+     * @param string                              $recipePath       The path to the current recipe
+     * @param string                              $parentRecipe     The name of the recipe that enabled this one
+     * @param string                              $commandName      The command name that was executed
+     * @param array<string, array<string, mixed>> $status           The current status array
+     * @param array<string, bool>                 $visited          Set of visited recipe names to avoid infinite loops
      */
     private function updateDependentRecipesStatus(
         RecipeTreeFinder $recipeTreeFinder,
@@ -132,22 +132,22 @@ class RecipeManagerLogger
         array &$visited
     ): void {
         $dependencies = $recipeTreeFinder->getRecipeDependencies($recipePath);
-        
+
         foreach ($dependencies as $dependency) {
             // Get the base name of the dependency (in case it's a full path)
             $dependencyName = basename($dependency);
-            
+
             // Skip if we've already visited this dependency
             if (isset($visited[$dependencyName])) {
                 continue;
             }
-            
+
             // Find the dependency path using the recipe name
             $dependencyPath = $recipeTreeFinder->findRecipePath($dependencyName);
             if (null !== $dependencyPath) {
                 // Mark as visited using the recipe name
                 $visited[$dependencyName] = true;
-                
+
                 // Update dependent recipe status to enabled
                 $status[$dependencyName] = [
                     'exit_code' => 0,
@@ -156,7 +156,7 @@ class RecipeManagerLogger
                     'recipe_path' => $dependencyPath,
                     'enabled_by' => $parentRecipe, // Track which recipe enabled this one
                 ];
-                
+
                 // Recursively update this dependency's dependencies
                 $this->updateDependentRecipesStatus(
                     $recipeTreeFinder,
