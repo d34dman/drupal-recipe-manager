@@ -12,13 +12,12 @@ $finder = PhpCsFixer\Finder::create()
 return (new PhpCsFixer\Config())
     ->setRiskyAllowed(true)
     ->setRules([
-        '@PSR12' => true,
+        '@Symfony' => true,
+        '@Symfony:risky' => true,
         '@PHP80Migration' => true,
         '@PHP81Migration' => true,
         '@PHP82Migration' => true,
         '@PHPUnit84Migration:risky' => true,
-        '@Symfony' => true,
-        '@Symfony:risky' => true,
         'array_syntax' => ['syntax' => 'short'],
         'blank_line_after_opening_tag' => true,
         'blank_line_before_statement' => [
@@ -90,7 +89,6 @@ return (new PhpCsFixer\Config())
         'return_type_declaration' => true,
         'self_accessor' => true,
         'short_scalar_cast' => true,
-        'single_blank_line_before_namespace' => true,
         'single_class_element_per_statement' => true,
         'single_import_per_statement' => true,
         'single_line_after_imports' => true,
@@ -98,6 +96,8 @@ return (new PhpCsFixer\Config())
         'single_quote' => true,
         'space_after_semicolon' => true,
         'standardize_not_equals' => true,
+        'strict_comparison' => true,
+        'strict_param' => true,
         'ternary_operator_spaces' => true,
         'trailing_comma_in_multiline' => true,
         'trim_array_spaces' => true,

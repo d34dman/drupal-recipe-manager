@@ -5,15 +5,20 @@ declare(strict_types=1);
 namespace D34dman\DrupalRecipeManager\DTO;
 
 /**
- * Data Transfer Object for Command Log
+ * Data Transfer Object for Command Log.
  */
 class CommandLog
 {
     private string $timestamp;
+
     private string $recipe;
+
     private string $commandName;
+
     private string $actualCommand;
+
     private int $exitCode;
+
     private string $status;
 
     public function __construct(
@@ -75,12 +80,12 @@ class CommandLog
     public function toArray(): array
     {
         return [
-            "timestamp" => $this->timestamp,
-            "recipe" => $this->recipe,
-            "command" => $this->commandName,
-            "actual_command" => $this->actualCommand,
-            "exit_code" => $this->exitCode,
-            "status" => $this->status
+            'timestamp' => $this->timestamp,
+            'recipe' => $this->recipe,
+            'command' => $this->commandName,
+            'actual_command' => $this->actualCommand,
+            'exit_code' => $this->exitCode,
+            'status' => $this->status,
         ];
     }
 
@@ -97,12 +102,12 @@ class CommandLog
     public static function fromArray(array $data): self
     {
         return new self(
-            $data["timestamp"],
-            $data["recipe"],
-            $data["command"],
-            $data["actual_command"],
-            $data["exit_code"],
-            $data["status"]
+            $data['timestamp'],
+            $data['recipe'],
+            $data['command'],
+            $data['actual_command'],
+            $data['exit_code'],
+            $data['status']
         );
     }
-} 
+}

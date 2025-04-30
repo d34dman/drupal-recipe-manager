@@ -10,7 +10,7 @@ namespace D34dman\DrupalRecipeManager\DTO;
 final class RecipeConfig
 {
     /**
-     * @param string $name The name of the recipe
+     * @param string        $name         The name of the recipe
      * @param array<string> $dependencies List of recipe dependencies
      */
     public function __construct(
@@ -19,7 +19,7 @@ final class RecipeConfig
         private readonly array $dependencies = [],
     ) {
     }
-    
+
     public function getLabel(): string
     {
         return $this->label;
@@ -37,5 +37,4 @@ final class RecipeConfig
     {
         return $this->dependencies;
     }
-
-} 
+}

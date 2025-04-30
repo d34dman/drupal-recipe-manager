@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace D34dman\DrupalRecipeManager\Helper;
 
-use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Yaml\Yaml;
-use Symfony\Component\Filesystem\Filesystem;
 use D34dman\DrupalRecipeManager\DTO\Config;
-use Symfony\Component\Finder\Finder;
 use D34dman\DrupalRecipeManager\DTO\RecipeConfig;
+use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Filesystem\Filesystem;
+use Symfony\Component\Finder\Finder;
+use Symfony\Component\Yaml\Yaml;
 
 /**
  * Helper class for finding and handling recipe trees.
@@ -19,7 +19,6 @@ class RecipeTreeFinder
     /** @var array<string, int> */
     private array $visitCount = [];
 
-    /** @var Config */
     private Config $config;
 
     private Filesystem $filesystem;
@@ -43,36 +42,37 @@ class RecipeTreeFinder
         $finder = new Finder();
         $recipes = [];
         $currentDir = getcwd();
-        if ($currentDir === false) {
-            throw new \RuntimeException("Could not get current working directory");
+        if (false === $currentDir) {
+            throw new \RuntimeException('Could not get current working directory');
         }
 
         foreach ($this->config->getScanDirs() as $dir) {
             // Use relative path for directory
             $relativeDir = $dir;
-            if (strpos($dir, $currentDir) === 0) {
-                $relativeDir = substr($dir, strlen($currentDir) + 1);
+            if (str_starts_with($dir, $currentDir)) {
+                $relativeDir = substr($dir, \strlen($currentDir) + 1);
             }
-            
+
             if (!$this->filesystem->exists($relativeDir)) {
                 if ($output) {
                     $output->writeln("<comment>Directory not found: {$relativeDir}</comment>");
                 }
+
                 continue;
             }
 
             $finder->in($relativeDir)
                 ->files()
-                ->name("recipe.yml")
+                ->name('recipe.yml')
                 ->ignoreDotFiles(false)
                 ->ignoreVCS(false)
-                ->depth(">= 0");
+                ->depth('>= 0');
 
             foreach ($finder as $file) {
                 // Get relative path from current directory
-                $recipePath = dirname($file->getPathname());
+                $recipePath = \dirname($file->getPathname());
                 $recipeName = basename($recipePath);
-                
+
                 // Only add the recipe if it hasn't been added before
                 if (!isset($recipes[$recipeName])) {
                     $recipes[$recipeName] = $recipePath;
@@ -95,31 +95,32 @@ class RecipeTreeFinder
                 $finder = new Finder();
                 $finder->directories()->in($dir)->depth(0);
                 foreach ($finder as $file) {
-                    $recipePath = $dir . "/" . $file->getFilename();
+                    $recipePath = $dir . '/' . $file->getFilename();
                     $recipes = array_merge($recipes, $this->findRecipes($output));
                 }
             }
         }
+
         return array_unique($recipes);
     }
 
     public function loadRecipeConfig(string $recipePath): ?RecipeConfig
     {
-        $configFile = $recipePath . "/recipe.yml";
+        $configFile = $recipePath . '/recipe.yml';
         if (!$this->filesystem->exists($configFile)) {
             return null;
         }
 
         try {
             $config = Yaml::parseFile($configFile);
-            if (!is_array($config)) {
+            if (!\is_array($config)) {
                 return null;
             }
 
             return new RecipeConfig(
                 name: basename($recipePath),
-                label: $config["name"] ?? "",
-                dependencies: $config["recipes"] ?? [],
+                label: $config['name'] ?? '',
+                dependencies: $config['recipes'] ?? [],
             );
         } catch (\Exception) {
             return null;
@@ -127,10 +128,11 @@ class RecipeTreeFinder
     }
 
     /**
-     * Find a recipe by name in the configured scan directories
+     * Find a recipe by name in the configured scan directories.
      *
      * @param string $recipeName The name of the recipe to find
-     * @return string|null The path to the recipe directory or null if not found
+     *
+     * @return null|string The path to the recipe directory or null if not found
      */
     public function findRecipePath(string $recipeName): ?string
     {
@@ -160,9 +162,10 @@ class RecipeTreeFinder
     public function getRecipeDependencies(string $recipePath): array
     {
         $config = $this->loadRecipeConfig($recipePath);
-        if ($config === null) { 
+        if (null === $config) {
             return [];
         }
+
         return $config->getDependencies();
     }
 
@@ -172,6 +175,7 @@ class RecipeTreeFinder
     public function isVisited(string $recipeName): bool
     {
         $isVisited = isset($this->visitCount[$recipeName]) && $this->visitCount[$recipeName] > 0;
+
         return $isVisited;
     }
 
@@ -183,7 +187,7 @@ class RecipeTreeFinder
         if (!isset($this->visitCount[$recipeName])) {
             $this->visitCount[$recipeName] = 0;
         }
-        $this->visitCount[$recipeName]++;
+        ++$this->visitCount[$recipeName];
     }
 
     /**
@@ -192,7 +196,7 @@ class RecipeTreeFinder
     public function unmarkVisited(string $recipeName): void
     {
         if (isset($this->visitCount[$recipeName])) {
-            $this->visitCount[$recipeName]--;
+            --$this->visitCount[$recipeName];
             if ($this->visitCount[$recipeName] <= 0) {
                 unset($this->visitCount[$recipeName]);
             }
@@ -202,10 +206,10 @@ class RecipeTreeFinder
     /**
      * Find a recipe by name in the given directories.
      *
-     * @param string $recipeName The name of the recipe to find
-     * @param array<string> $scanDirs The directories to scan
+     * @param string        $recipeName The name of the recipe to find
+     * @param array<string> $scanDirs   The directories to scan
      *
-     * @return string|null The path to the recipe directory, or null if not found
+     * @return null|string The path to the recipe directory, or null if not found
      */
     public function findRecipePathInDirs(string $recipeName, array $scanDirs): ?string
     {
@@ -247,5 +251,4 @@ class RecipeTreeFinder
 
         return $recipes;
     }
-
-} 
+}

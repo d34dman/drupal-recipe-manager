@@ -7,21 +7,24 @@ namespace D34dman\DrupalRecipeManager\DTO;
 use Symfony\Component\Filesystem\Filesystem;
 
 /**
- * Configuration DTO for Drupal Recipe Manager
+ * Configuration DTO for Drupal Recipe Manager.
  */
 class Config
 {
     /** @var array<string> */
     private array $scanDirs;
+
     private ?string $logsDir;
+
     /** @var array<string, array{command: string}> */
     private array $commands;
+
     /** @var array<array{input: string, search: string, replace: string, name: string}> */
     private array $variables;
 
     /**
-     * @param array<string> $scanDirs
-     * @param array<string, array{command: string}> $commands
+     * @param array<string>                                                              $scanDirs
+     * @param array<string, array{command: string}>                                      $commands
      * @param array<array{input: string, search: string, replace: string, name: string}> $variables
      */
     public function __construct(
@@ -37,7 +40,8 @@ class Config
     }
 
     /**
-     * Create Config from array
+     * Create Config from array.
+     *
      * @param array{
      *     scanDirs?: array<string>,
      *     logsDir?: string,
@@ -48,15 +52,15 @@ class Config
     public static function fromArray(array $data): self
     {
         return new self(
-            $data["scanDirs"] ?? [],
-            $data["logsDir"] ?? null,
-            $data["commands"] ?? [],
-            $data["variables"] ?? []
+            $data['scanDirs'] ?? [],
+            $data['logsDir'] ?? null,
+            $data['commands'] ?? [],
+            $data['variables'] ?? []
         );
     }
 
     /**
-     * Merge with another Config
+     * Merge with another Config.
      */
     public function merge(self $other): self
     {
@@ -138,7 +142,8 @@ class Config
     }
 
     /**
-     * Convert to array
+     * Convert to array.
+     *
      * @return array{
      *     scanDirs: array<string>,
      *     logsDir?: string,
@@ -149,20 +154,21 @@ class Config
     public function toArray(): array
     {
         $data = [
-            "scanDirs" => $this->scanDirs,
-            "commands" => $this->commands,
-            "variables" => $this->variables,
+            'scanDirs' => $this->scanDirs,
+            'commands' => $this->commands,
+            'variables' => $this->variables,
         ];
 
-        if ($this->logsDir !== null) {
-            $data["logsDir"] = $this->logsDir;
+        if (null !== $this->logsDir) {
+            $data['logsDir'] = $this->logsDir;
         }
 
         return $data;
     }
 
     /**
-     * Validate configuration
+     * Validate configuration.
+     *
      * @throws \InvalidArgumentException if configuration is invalid
      */
     public function validate(): void
@@ -178,19 +184,19 @@ class Config
 
         // Validate commands
         foreach ($this->commands as $name => $command) {
-            if (!array_key_exists("command", $command)) {
+            if (!\array_key_exists('command', $command)) {
                 throw new \InvalidArgumentException("Command '{$name}' is missing 'command' field");
             }
         }
 
         // Validate variables
         foreach ($this->variables as $index => $variable) {
-            $requiredFields = ["input", "search", "replace", "name"];
+            $requiredFields = ['input', 'search', 'replace', 'name'];
             foreach ($requiredFields as $field) {
-                if (!array_key_exists($field, $variable)) {
+                if (!\array_key_exists($field, $variable)) {
                     throw new \InvalidArgumentException("Variable at index {$index} is missing '{$field}' field");
                 }
             }
         }
     }
-} 
+}

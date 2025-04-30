@@ -4,14 +4,11 @@ declare(strict_types=1);
 
 namespace D34dman\DrupalRecipeManager\Helper;
 
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Yaml\Yaml;
-use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
-use D34dman\DrupalRecipeManager\DTO\CommandLog;
 use D34dman\DrupalRecipeManager\DTO\Config;
+use Symfony\Component\Yaml\Yaml;
 
 /**
- * Helper class for logging recipe execution
+ * Helper class for logging recipe execution.
  */
 class RecipeManagerLogger
 {
@@ -23,17 +20,17 @@ class RecipeManagerLogger
     }
 
     /**
-     * Log recipe execution to history and update status
+     * Log recipe execution to history and update status.
      *
-     * @param string|null $recipe The recipe name
-     * @param string|null $commandName The command name
-     * @param string|null $command The actual command executed
-     * @param int|null $exitCode The command exit code
-     * @param string|null $recipePath The path to the recipe
+     * @param null|string $recipe      The recipe name
+     * @param null|string $commandName The command name
+     * @param null|string $command     The actual command executed
+     * @param null|int    $exitCode    The command exit code
+     * @param null|string $recipePath  The path to the recipe
      */
     public function logExecution(?string $recipe, ?string $commandName, ?string $command, ?int $exitCode, ?string $recipePath): void
     {
-        if ($recipe === null || $commandName === null || $command === null || $exitCode === null || $recipePath === null) {
+        if (null === $recipe || null === $commandName || null === $command || null === $exitCode || null === $recipePath) {
             return;
         }
 
@@ -42,17 +39,17 @@ class RecipeManagerLogger
     }
 
     /**
-     * Log execution to command history
+     * Log execution to command history.
      */
     private function logToHistory(?string $recipe, ?string $commandName, ?string $command, ?int $exitCode): void
     {
-        if ($recipe === null || $commandName === null || $command === null || $exitCode === null) {
+        if (null === $recipe || null === $commandName || null === $command || null === $exitCode) {
             return;
         }
 
-        $logFile = $this->config->getLogsDir() . "/recipe_history.log";
-        $timestamp = date("Y-m-d H:i:s");
-        $logEntry = sprintf(
+        $logFile = $this->config->getLogsDir() . '/recipe_history.log';
+        $timestamp = date('Y-m-d H:i:s');
+        $logEntry = \sprintf(
             "[%s] Recipe: %s, Command: %s, Exit Code: %d\nCommand: %s\n\n",
             $timestamp,
             $recipe,
@@ -61,19 +58,19 @@ class RecipeManagerLogger
             $command
         );
 
-        file_put_contents($logFile, $logEntry, FILE_APPEND);
+        file_put_contents($logFile, $logEntry, \FILE_APPEND);
     }
 
     /**
-     * Update recipe status
+     * Update recipe status.
      */
     private function updateRecipeStatus(?string $recipe, ?int $exitCode, ?string $commandName, ?string $recipePath): void
     {
-        if ($recipe === null || $exitCode === null || $commandName === null || $recipePath === null) {
+        if (null === $recipe || null === $exitCode || null === $commandName || null === $recipePath) {
             return;
         }
 
-        $statusFile = $this->config->getLogsDir() . "/recipe_status.yaml";
+        $statusFile = $this->config->getLogsDir() . '/recipe_status.yaml';
         $status = [];
 
         if (file_exists($statusFile)) {
@@ -85,17 +82,17 @@ class RecipeManagerLogger
         }
 
         $status[$recipe] = [
-            "exit_code" => $exitCode,
-            "command" => $commandName,
-            "timestamp" => date("Y-m-d H:i:s"),
-            "recipe_path" => $recipePath
+            'exit_code' => $exitCode,
+            'command' => $commandName,
+            'timestamp' => date('Y-m-d H:i:s'),
+            'recipe_path' => $recipePath,
         ];
 
         try {
             file_put_contents($statusFile, Yaml::dump($status));
         } catch (\Exception $e) {
             // If we can't write to the file, just log the error
-            error_log("Failed to update recipe status: " . $e->getMessage());
+            error_log('Failed to update recipe status: ' . $e->getMessage());
         }
     }
-} 
+}

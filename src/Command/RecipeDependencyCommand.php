@@ -4,21 +4,23 @@ declare(strict_types=1);
 
 namespace D34dman\DrupalRecipeManager\Command;
 
+use D34dman\DrupalRecipeManager\DTO\Config;
 use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Question\ChoiceQuestion;
-use D34dman\DrupalRecipeManager\DTO\Config;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class RecipeDependencyCommand extends Command
 {
-    protected static string $defaultName = "recipe:dependencies";
-    protected static string $defaultDescription = "Show recipe dependencies in a tree structure";
+    protected static string $defaultName = 'recipe:dependencies';
+
+    protected static string $defaultDescription = 'Show recipe dependencies in a tree structure';
 
     private RecipeTreeFinder $treeFinder;
+
     /** @var array<string, array<string>> */
     private array $dependencyMap = [];
 
@@ -33,24 +35,25 @@ class RecipeDependencyCommand extends Command
         $this
             ->setName(self::$defaultName)
             ->setDescription(self::$defaultDescription)
-            ->addArgument("recipe", InputArgument::OPTIONAL, "The recipe to show dependencies for")
-            ->addOption("inverted", "i", null, "Show inverted dependency tree (which recipes depend on this recipe)");
+            ->addArgument('recipe', InputArgument::OPTIONAL, 'The recipe to show dependencies for')
+            ->addOption('inverted', 'i', null, 'Show inverted dependency tree (which recipes depend on this recipe)');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $io->title("Recipe Dependencies");
+        $io->title('Recipe Dependencies');
 
         // Ensure UTF-8 output
-        if (method_exists($output, "setEncoding")) {
-            $output->setEncoding("UTF-8");
+        if (method_exists($output, 'setEncoding')) {
+            $output->setEncoding('UTF-8');
         }
 
         // Find all recipe directories
         $recipes = $this->treeFinder->findRecipes($output);
         if (empty($recipes)) {
-            $io->warning("No recipes found in configured directories.");
+            $io->warning('No recipes found in configured directories.');
+
             return Command::FAILURE;
         }
 
@@ -58,26 +61,29 @@ class RecipeDependencyCommand extends Command
         $this->buildDependencyMap($recipes);
 
         // If a recipe is specified, show its dependencies
-        if ($recipeName = $input->getArgument("recipe")) {
+        if ($recipeName = $input->getArgument('recipe')) {
             // Find the recipe path in the list of recipes
             $recipePath = null;
             foreach ($recipes as $path) {
                 if (basename($path) === $recipeName) {
                     $recipePath = $path;
+
                     break;
                 }
             }
-            
+
             if (!$recipePath) {
                 $io->error("Recipe '{$recipeName}' not found");
+
                 return Command::FAILURE;
             }
 
-            if ($input->getOption("inverted")) {
+            if ($input->getOption('inverted')) {
                 $this->displayInvertedDependencyTree($io, $recipeName);
             } else {
                 $this->displayDependencyTree($io, $recipePath, 0, [], $output);
             }
+
             return Command::SUCCESS;
         }
 
@@ -92,16 +98,18 @@ class RecipeDependencyCommand extends Command
         foreach ($recipes as $path) {
             if (basename($path) === $recipeName) {
                 $recipePath = $path;
+
                 break;
             }
         }
 
         if (!$recipePath) {
             $io->error("Recipe '{$recipeName}' not found");
+
             return Command::FAILURE;
         }
 
-        if ($input->getOption("inverted")) {
+        if ($input->getOption('inverted')) {
             $this->displayInvertedDependencyTree($io, $recipeName);
         } else {
             $this->displayDependencyTree($io, $recipePath, 0, [], $output);
@@ -118,7 +126,7 @@ class RecipeDependencyCommand extends Command
         foreach ($recipes as $recipePath) {
             $recipeName = basename($recipePath);
             $dependencies = $this->treeFinder->getRecipeDependencies($recipePath);
-            
+
             foreach ($dependencies as $dependency) {
                 $depName = basename($dependency);
                 if (!isset($this->dependencyMap[$depName])) {
@@ -133,14 +141,15 @@ class RecipeDependencyCommand extends Command
     {
         // Check for circular dependencies
         if ($this->treeFinder->isVisited($recipeName)) {
-            $io->writeln(str_repeat("  ", $depth) . "└─ <error>Circular dependency detected: {$recipeName}</error>");
+            $io->writeln(str_repeat('  ', $depth) . "└─ <error>Circular dependency detected: {$recipeName}</error>");
+
             return;
         }
 
         $this->treeFinder->markVisited($recipeName);
-        
+
         // Display current recipe
-        $prefix = $depth === 0 ? "" : str_repeat("  ", $depth - 1) . "└─ ";
+        $prefix = 0 === $depth ? '' : str_repeat('  ', $depth - 1) . '└─ ';
         $io->writeln($prefix . "<info>{$recipeName}</info>");
 
         // Get and display recipes that depend on this one
@@ -164,7 +173,7 @@ class RecipeDependencyCommand extends Command
         }
 
         $question = new ChoiceQuestion(
-            "Select a recipe to show dependencies:",
+            'Select a recipe to show dependencies:',
             array_keys($recipeMap)
         );
 
@@ -180,52 +189,52 @@ class RecipeDependencyCommand extends Command
         int $depth = 0,
         array $parentConnectors = [],
         ?OutputInterface $output = null
-    ): void
-    {
+    ): void {
         $recipeName = basename($recipePath);
-        
+
         // Check for circular dependencies
         if ($this->treeFinder->isVisited($recipeName)) {
             $this->writeTreeLine($io, $parentConnectors, "└── <error>Circular dependency detected: {$recipeName}</error>");
+
             return;
         }
 
         $this->treeFinder->markVisited($recipeName);
-        
+
         // Display current recipe only if it's the root
-        if ($depth === 0) {
+        if (0 === $depth) {
             $io->writeln("<info>{$recipeName}</info>");
         }
 
         // Get and display dependencies
         $dependencies = $this->treeFinder->getRecipeDependencies($recipePath);
-        $lastIndex = count($dependencies) - 1;
-        
+        $lastIndex = \count($dependencies) - 1;
+
         foreach ($dependencies as $index => $dependency) {
             // Handle both full paths and recipe names
             $depName = basename($dependency);
-            
+
             // Skip if this is the same as the current recipe
             if ($depName === $recipeName) {
                 continue;
             }
-            
+
             // Find the dependency path
             $depPath = $this->treeFinder->findRecipePath($depName);
             if (!$depPath) {
                 continue;
             }
-            
+
             // Create connectors for this level
             $currentConnectors = $parentConnectors;
-            
+
             // Display the dependency name with proper connector
-            $connector = $index === $lastIndex ? "└── " : "├── ";
+            $connector = $index === $lastIndex ? '└── ' : '├── ';
             $this->writeTreeLine($io, $currentConnectors, $connector . "<info>{$depName}</info>");
-            
+
             // Prepare connectors for the next level
             $nextConnectors = $currentConnectors;
-            $nextConnectors[] = $index === $lastIndex ? "    " : "│   ";
+            $nextConnectors[] = $index === $lastIndex ? '    ' : '│   ';
             $this->displayDependencyTree($io, $depPath, $depth + 1, $nextConnectors, $output);
         }
 
@@ -237,7 +246,7 @@ class RecipeDependencyCommand extends Command
      */
     private function writeTreeLine(SymfonyStyle $io, array $connectors, string $content): void
     {
-        $prefix = implode("", $connectors);
+        $prefix = implode('', $connectors);
         $io->writeln($prefix . $content);
     }
-} 
+}
