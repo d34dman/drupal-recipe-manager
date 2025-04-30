@@ -29,6 +29,9 @@ composer require --dev d34dman/drupal-recipe-manager
 
 2. Create a configuration file in your Drupal project root:
 
+The script requires a `drupal-recipe-manager.yaml` in the directory
+it is invoked.
+
 An example file for a ddev based project is as follows.
 
 ```yaml
@@ -36,6 +39,8 @@ An example file for a ddev based project is as follows.
 # Directories to scan for recipes
 scanDirs:
   - recipes
+  # You can also include "core" recipes ir desired.
+  # - web/core/recipes
 # Custom commands for recipe management
 commands:
   ddevRecipe:
