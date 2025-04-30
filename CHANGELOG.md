@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.1.0
+
+### Added
+- Recursive dependency status tracking
+  - When a recipe is enabled, all its dependencies are automatically marked as enabled
+  - New `enabled_by` status attribute to track which recipe enabled another recipe
+  - Prevents infinite loops in dependency chains
+- Improved dependency visualization
+  - Better tree structure display
+  - Clearer status indicators
+  - Support for inverted dependency view
+
+### Changed
+- Status tracking improvements
+  - More detailed status information
+  - Better handling of nested dependencies
+  - Clearer status indicators in the UI
+
+### Fixed
+- Dependency status updates
+  - Fixed missing status updates for nested dependencies
+  - Improved handling of circular dependencies
+  - Better path handling for recipe dependencies
+
 ## 1.0.0
 
 ### Major Changes
