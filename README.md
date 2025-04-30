@@ -47,6 +47,10 @@ commands:
     description: "🚀 Run Drush recipe command using ddev"
     command: "ddev drush recipe ../${folder}"
     requiresFolder: true
+  # phpRecipe:
+  #   description: "🚀 Run Drupal recipe command"
+  #   command: "php ../../web/core/scripts/drupal recipe ../${folder} -v"
+  #   requiresFolder: true
 logsDir: recipes/logs
 ```
 
