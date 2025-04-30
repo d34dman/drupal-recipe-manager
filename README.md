@@ -4,116 +4,63 @@ A CLI tool for managing and executing Drupal recipes.
 
 ![screeenshot](screenshot.png)
 
-## Features
+## Quick Start
 
-- Interactive recipe selection and execution
-- Recipe status tracking (success/failure/not executed)
-- Custom command configuration
-- Variable transformations
-- Command execution logging
-- Beautiful terminal UI with color-coded status indicators
-
-## Requirements
-
-- PHP 8.2 or higher
-- Composer
-- Drupal installation with recipes
-
-## Installation
-
-1. Install using Composer:
-
+1. Install:
+2. 
 ```bash
 composer require --dev d34dman/drupal-recipe-manager
 ```
 
-2. Create a configuration file in your Drupal project root:
-
-The script requires a `drupal-recipe-manager.yaml` in the directory
-it is invoked.
-
-An example file for a ddev based project is as follows.
+2. Create `drupal-recipe-manager.yaml`:
 
 ```yaml
-# drupal-recipe-manager.yaml
-# Directories to scan for recipes
 scanDirs:
   - recipes
-  # You can also include "core" recipes ir desired.
-  # - web/core/recipes
-# Custom commands for recipe management
+  # - web/core/recipes  # Uncomment to include core recipes
 commands:
   ddevRecipe:
     description: "🚀 Run Drush recipe command using ddev"
     command: "ddev drush recipe ../${folder}"
     requiresFolder: true
-  # phpRecipe:
-  #   description: "🚀 Run Drupal recipe command"
-  #   command: "php ../../web/core/scripts/drupal recipe ../${folder} -v"
-  #   requiresFolder: true
 logsDir: recipes/logs
 ```
 
-## Usage
+## Commands
 
-### Interactive Mode
+The executable should be available inside `/vendor/bin/drupal-recipe-manager`
 
-```bash
-vendor/bin/drupal-recipe-manager recipe
+```
+$ /vendor/bin/drupal-recipe-manager recipe
 ```
 
-### List Available Recipes
+| Command | Description |
+|---------|-------------|
+| `recipe` | Interactive recipe selection and execution |
+| `recipe --list` | List all recipes with status |
+| `recipe [recipe-name]` | Run a specific recipe |
+| `recipe:dependencies` | Show recipe dependencies interactively |
+| `recipe:dependencies [recipe-name]` | Show dependency tree for a recipe |
+| `recipe:dependencies --inverted` | Show which recipes depend on a recipe |
 
-```bash
-vendor/bin/drupal-recipe-manager recipe --list
-```
+## Features
 
-### Run a Specific Recipe
-
-```bash
-vendor/bin/drupal-recipe-manager recipe [recipe-name]
-```
-
-### Show dependency tree in interactive mode
-
-```bash
-vendor/bin/drupal-recipe-manager recipe:dependencies
-```
-
-### Show dependency tree for a specific recipe
-
-```bash
-vendor/bin/drupal-recipe-manager recipe:dependencies [recipe-name]
-```
+- **Interactive UI**: Beautiful terminal interface with color-coded status
+- **Status Tracking**: 
+  - ✓ Green: Successfully executed
+  - ✗ Red: Failed execution
+  - ○ Gray: Not executed yet
+- **Dependency Management**: Automatic handling of recipe dependencies
+- **Custom Commands**: Configure your own recipe execution commands
+- **Variable Transformations**: Customize paths and variables
 
 ## Configuration
 
 ### Directories
-
 - `scanDirs`: List of directories to scan for recipes
-- `logsDir`: Directory for storing logs (relative to scripts directory)
-
-### Commands
-
-Define custom commands in the configuration file:
-
-```yaml
-commands:
-  ddevDrush:
-    description: "Run Drush recipe command"
-    command: "ddev drush recipe ../${folder}"
-  localDrush:
-    description: "Run Drush recipe command"
-    command: "ddev drush recipe ${folder}"  
-  php:
-    description: "Run Drush recipe command"
-    command: "php core/scripts/drupal recipe ${folder}"  
-```
+- `logsDir`: Directory for storing logs
 
 ### Variables
-
-Define variable transformations:
-
 ```yaml
 variables:
   - name: "folder_relative"
@@ -122,23 +69,15 @@ variables:
     replace: ""
 ```
 
-## Status Indicators
+## Requirements
 
-- ✓ Green: Successfully executed
-- ✗ Red: Failed execution
-- ○ Gray: Not executed yet
+- PHP 8.2+
+- Composer
+- Drupal installation with recipes
 
 ## License
 
 MIT License - See LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
 
 ## Author
 
