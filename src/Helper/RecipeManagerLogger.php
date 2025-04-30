@@ -87,6 +87,7 @@ class RecipeManagerLogger
             'command' => $commandName,
             'timestamp' => date('Y-m-d H:i:s'),
             'recipe_path' => $recipePath,
+            'enabled_by' => null, // This recipe was enabled directly
         ];
 
         // If the recipe was successfully enabled (exit code 0), update dependent recipes recursively
@@ -97,6 +98,7 @@ class RecipeManagerLogger
             $this->updateDependentRecipesStatus(
                 $recipeTreeFinder,
                 $recipePath,
+                $recipe, // Pass the parent recipe name
                 $commandName,
                 $status,
                 $visited
@@ -116,6 +118,7 @@ class RecipeManagerLogger
      *
      * @param RecipeTreeFinder $recipeTreeFinder The recipe tree finder instance
      * @param string $recipePath The path to the current recipe
+     * @param string $parentRecipe The name of the recipe that enabled this one
      * @param string $commandName The command name that was executed
      * @param array<string, array<string, mixed>> $status The current status array
      * @param array<string, bool> $visited Set of visited recipe names to avoid infinite loops
@@ -123,6 +126,7 @@ class RecipeManagerLogger
     private function updateDependentRecipesStatus(
         RecipeTreeFinder $recipeTreeFinder,
         string $recipePath,
+        string $parentRecipe,
         string $commandName,
         array &$status,
         array &$visited
@@ -150,12 +154,14 @@ class RecipeManagerLogger
                     'command' => $commandName,
                     'timestamp' => date('Y-m-d H:i:s'),
                     'recipe_path' => $dependencyPath,
+                    'enabled_by' => $parentRecipe, // Track which recipe enabled this one
                 ];
                 
                 // Recursively update this dependency's dependencies
                 $this->updateDependentRecipesStatus(
                     $recipeTreeFinder,
                     $dependencyPath,
+                    $parentRecipe, // Keep the original parent recipe name
                     $commandName,
                     $status,
                     $visited
