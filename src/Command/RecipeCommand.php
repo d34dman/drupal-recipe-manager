@@ -41,7 +41,9 @@ class RecipeCommand extends Command
             ->setDescription(self::$defaultDescription)
             ->addArgument("recipe", InputArgument::OPTIONAL, "The recipe to run")
             ->addOption("command", "c", InputOption::VALUE_REQUIRED, "The command to run (defaults to first configured command)")
-            ->addOption("list", "l", InputOption::VALUE_NONE, "List available recipes");
+            ->addOption("list", "l", InputOption::VALUE_NONE, "List available recipes")
+            ->addOption("scan-dirs", "d", InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, "Directories to scan for recipes (comma-separated)")
+            ->addOption("commands", "m", InputOption::VALUE_REQUIRED, "JSON string of commands configuration");
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
@@ -58,8 +60,22 @@ class RecipeCommand extends Command
             });
         }
 
+        // Override config with command line options if provided
+        $config = $this->config;
+        if ($scanDirs = $input->getOption("scan-dirs")) {
+            $config["scanDirs"] = $scanDirs;
+        }
+        if ($commandsJson = $input->getOption("commands")) {
+            $commands = json_decode($commandsJson, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                $io->error("Invalid JSON format for commands option");
+                return Command::FAILURE;
+            }
+            $config["commands"] = $commands;
+        }
+
         // Find all recipe directories
-        $recipes = $this->findRecipes($output);
+        $recipes = $this->findRecipes($output, $config);
         if (empty($recipes)) {
             $io->warning("No recipes found in configured directories.");
             return Command::FAILURE;
@@ -77,7 +93,7 @@ class RecipeCommand extends Command
 
         // If a recipe is specified via command line, run it and exit
         if ($recipeName = $input->getArgument("recipe")) {
-            return $this->runRecipe($io, $recipeName, $input->getOption("command"), $recipes);
+            return $this->runRecipe($io, $recipeName, $input->getOption("command"), $recipes, $config);
         }
 
         // Interactive mode
@@ -98,15 +114,15 @@ class RecipeCommand extends Command
             }
 
             // If only one command is defined, use it automatically
-            if (count($this->config["commands"]) === 1) {
-                $commandName = array_key_first($this->config["commands"]);
+            if (count($config["commands"]) === 1) {
+                $commandName = array_key_first($config["commands"]);
                 $io->writeln(sprintf("Using command: <info>%s</info>", $commandName));
-                $this->runRecipe($io, $recipeName, $commandName, $recipes);
+                $this->runRecipe($io, $recipeName, $commandName, $recipes, $config);
             } else {
                 // Otherwise, show command selection
-                $commandName = $this->selectCommand($io, $input, $output);
+                $commandName = $this->selectCommand($io, $input, $output, $config);
                 if ($commandName) {
-                    $this->runRecipe($io, $recipeName, $commandName, $recipes);
+                    $this->runRecipe($io, $recipeName, $commandName, $recipes, $config);
                 }
             }
 
@@ -122,16 +138,16 @@ class RecipeCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function runRecipe(SymfonyStyle $io, string $recipeName, ?string $commandName, array $recipes): int
+    private function runRecipe(SymfonyStyle $io, string $recipeName, ?string $commandName, array $recipes, array $config): int
     {
-        $commandName = $commandName ?? array_key_first($this->config["commands"]);
+        $commandName = $commandName ?? array_key_first($config["commands"]);
 
-        if (!isset($this->config["commands"][$commandName])) {
+        if (!isset($config["commands"][$commandName])) {
             $io->error("Command '{$commandName}' not found in configuration");
             return Command::FAILURE;
         }
 
-        $commandConfig = $this->config["commands"][$commandName];
+        $commandConfig = $config["commands"][$commandName];
         $recipePath = $this->findRecipePath($recipeName, $recipes);
 
         if (!$recipePath) {
@@ -147,7 +163,7 @@ class RecipeCommand extends Command
         }
 
         // Prepare command with variables
-        $command = $this->prepareCommand($commandConfig["command"], $recipePath);
+        $command = $this->prepareCommand($commandConfig["command"], $recipePath, $config);
 
         $io->section("Running Recipe");
         $io->writeln("Recipe: <info>{$recipeName}</info>");
@@ -269,9 +285,9 @@ class RecipeCommand extends Command
         return $selected;
     }
 
-    private function selectCommand(SymfonyStyle $io, InputInterface $input, OutputInterface $output): ?string
+    private function selectCommand(SymfonyStyle $io, InputInterface $input, OutputInterface $output, array $config): ?string
     {
-        $commandChoices = array_keys($this->config["commands"]);
+        $commandChoices = array_keys($config["commands"]);
         $commandChoices[] = "Back";
         
         $defaultCommand = $commandChoices[0];
@@ -298,13 +314,13 @@ class RecipeCommand extends Command
         return null;
     }
 
-    private function findRecipes(OutputInterface $output): array
+    private function findRecipes(OutputInterface $output, array $config): array
     {
         $finder = new Finder();
         $recipes = [];
         $currentDir = getcwd();
 
-        foreach ($this->config["scanDirs"] as $dir) {
+        foreach ($config["scanDirs"] as $dir) {
             // Use relative path for directory
             $relativeDir = $dir;
             if (strpos($dir, $currentDir) === 0) {
@@ -470,7 +486,7 @@ class RecipeCommand extends Command
         return 2; // Not executed
     }
 
-    private function prepareCommand(string $command, string $recipePath): string
+    private function prepareCommand(string $command, string $recipePath, array $config): string
     {
         // Ensure recipe path exists
         if (!is_dir($recipePath)) {
@@ -491,7 +507,7 @@ class RecipeCommand extends Command
         ];
 
         // Apply custom transformations
-        foreach ($this->config["variables"] ?? [] as $transform) {
+        foreach ($config["variables"] ?? [] as $transform) {
             $inputValue = $variables[$transform["input"]] ?? $transform["input"];
             $search = preg_quote($transform["search"], "/");
             $variables[$transform["name"]] = preg_replace(
@@ -501,31 +517,13 @@ class RecipeCommand extends Command
             );
         }
 
-        // Special handling for Drush recipe commands
-        if (strpos($command, "drush recipe") !== false) {
-            // Handle both ddevRecipe and drushRecipe commands
-            $escapedPath = escapeshellarg($recipePath);
-            
-            // Replace ${folder} and {${folder}}
-            $command = str_replace('${folder}', $escapedPath, $command);
-            $command = str_replace('{${folder}}', $escapedPath, $command);
-            
-            // Replace ${ddevRecipePath} and {${ddevRecipePath}}
-            $command = str_replace('${ddevRecipePath}', $escapedPath, $command);
-            $command = str_replace('{${ddevRecipePath}}', $escapedPath, $command);
-            
-            // Debug: Log the command after replacement
-            error_log("Command after recipe path replacement: " . $command);
-        }
-
-        // Replace remaining variables in command (handle both ${variable} and {${variable}} syntax)
+        // Replace all variables in command (handle both ${variable} and {${variable}} syntax)
         foreach ($variables as $key => $value) {
-            if ($key !== "folder" && $key !== "ddevRecipePath") { // Skip already handled variables
-                // Replace ${variable}
-                $command = str_replace('${' . $key . '}', $value, $command);
-                // Replace {${variable}}
-                $command = str_replace('{${' . $key . '}}', $value, $command);
-            }
+            $escapedValue = escapeshellarg($value);
+            // Replace ${variable}
+            $command = str_replace('${' . $key . '}', $escapedValue, $command);
+            // Replace {${variable}}
+            $command = str_replace('{${' . $key . '}}', $escapedValue, $command);
         }
 
         // Debug: Log final command
