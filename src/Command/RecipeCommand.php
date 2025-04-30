@@ -325,11 +325,17 @@ class RecipeCommand extends Command
             foreach ($finder as $file) {
                 // Get relative path from current directory
                 $recipePath = dirname($file->getPathname());
-                $recipes[] = $recipePath;
+                $recipeName = basename($recipePath);
+                
+                // Only add the recipe if it hasn't been added before
+                if (!isset($recipes[$recipeName])) {
+                    $recipes[$recipeName] = $recipePath;
+                }
             }
         }
 
-        return $recipes;
+        // Convert associative array to indexed array for compatibility
+        return array_values($recipes);
     }
 
     private function loadRecipeStatus(): array
