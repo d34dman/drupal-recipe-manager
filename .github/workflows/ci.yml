@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        php: [8.1, 8.2, 8.3]
+        php: [8.2, 8.3]
 
     steps:
     - uses: actions/checkout@v4
@@ -25,7 +25,7 @@ jobs:
         tools: composer:v2
 
     - name: Install dependencies
-      run: composer install --prefer-dist --no-progress --no-suggest
+      run: composer install --prefer-dist --no-progress
 
     - name: Run PHPUnit
       run: composer test
@@ -58,7 +58,7 @@ jobs:
         tools: composer:v2
 
     - name: Install dependencies
-      run: composer install --prefer-dist --no-progress --no-suggest
+      run: composer install --prefer-dist --no-progress
 
     - name: Run security check
       run: composer audit 
