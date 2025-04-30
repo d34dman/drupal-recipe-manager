@@ -11,20 +11,20 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Console\Question\ChoiceQuestion;
+use D34dman\DrupalRecipeManager\DTO\Config;
 
 class RecipeDependencyCommand extends Command
 {
-    protected static $defaultName = "recipe:dependencies";
-    protected static $defaultDescription = "Show recipe dependencies in a tree structure";
+    protected static string $defaultName = "recipe:dependencies";
+    protected static string $defaultDescription = "Show recipe dependencies in a tree structure";
 
-    private array $config;
     private RecipeTreeFinder $treeFinder;
+    /** @var array<string, array<string>> */
     private array $dependencyMap = [];
 
-    public function __construct(array $config)
+    public function __construct(Config $config)
     {
         parent::__construct(self::$defaultName);
-        $this->config = $config;
         $this->treeFinder = new RecipeTreeFinder($config);
     }
 
@@ -42,6 +42,11 @@ class RecipeDependencyCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $io->title("Recipe Dependencies");
 
+        // Ensure UTF-8 output
+        if (method_exists($output, "setEncoding")) {
+            $output->setEncoding("UTF-8");
+        }
+
         // Find all recipe directories
         $recipes = $this->treeFinder->findRecipes($output);
         if (empty($recipes)) {
@@ -54,7 +59,15 @@ class RecipeDependencyCommand extends Command
 
         // If a recipe is specified, show its dependencies
         if ($recipeName = $input->getArgument("recipe")) {
-            $recipePath = $this->treeFinder->findRecipePath($recipeName, $recipes);
+            // Find the recipe path in the list of recipes
+            $recipePath = null;
+            foreach ($recipes as $path) {
+                if (basename($path) === $recipeName) {
+                    $recipePath = $path;
+                    break;
+                }
+            }
+            
             if (!$recipePath) {
                 $io->error("Recipe '{$recipeName}' not found");
                 return Command::FAILURE;
@@ -74,7 +87,20 @@ class RecipeDependencyCommand extends Command
             return Command::SUCCESS;
         }
 
-        $recipePath = $this->treeFinder->findRecipePath($recipeName, $recipes);
+        // Find the recipe path in the list of recipes
+        $recipePath = null;
+        foreach ($recipes as $path) {
+            if (basename($path) === $recipeName) {
+                $recipePath = $path;
+                break;
+            }
+        }
+
+        if (!$recipePath) {
+            $io->error("Recipe '{$recipeName}' not found");
+            return Command::FAILURE;
+        }
+
         if ($input->getOption("inverted")) {
             $this->displayInvertedDependencyTree($io, $recipeName);
         } else {
@@ -84,6 +110,9 @@ class RecipeDependencyCommand extends Command
         return Command::SUCCESS;
     }
 
+    /**
+     * @param array<string> $recipes
+     */
     private function buildDependencyMap(array $recipes): void
     {
         foreach ($recipes as $recipePath) {
@@ -120,9 +149,12 @@ class RecipeDependencyCommand extends Command
             $this->displayInvertedDependencyTree($io, $dependent, $depth + 1);
         }
 
-        $this->treeFinder->unmarkVisited();
+        $this->treeFinder->unmarkVisited($recipeName);
     }
 
+    /**
+     * @param array<string> $recipes
+     */
     private function selectRecipe(SymfonyStyle $io, array $recipes): ?string
     {
         $recipeMap = [];
@@ -139,6 +171,9 @@ class RecipeDependencyCommand extends Command
         return $io->askQuestion($question);
     }
 
+    /**
+     * @param array<string> $parentConnectors
+     */
     private function displayDependencyTree(
         SymfonyStyle $io,
         string $recipePath,
@@ -169,7 +204,17 @@ class RecipeDependencyCommand extends Command
         foreach ($dependencies as $index => $dependency) {
             // Handle both full paths and recipe names
             $depName = basename($dependency);
-            $depPath = $this->treeFinder->findRecipePath($depName, $this->treeFinder->findRecipes($output));
+            
+            // Skip if this is the same as the current recipe
+            if ($depName === $recipeName) {
+                continue;
+            }
+            
+            // Find the dependency path
+            $depPath = $this->treeFinder->findRecipePath($depName);
+            if (!$depPath) {
+                continue;
+            }
             
             // Create connectors for this level
             $currentConnectors = $parentConnectors;
@@ -178,17 +223,18 @@ class RecipeDependencyCommand extends Command
             $connector = $index === $lastIndex ? "└── " : "├── ";
             $this->writeTreeLine($io, $currentConnectors, $connector . "<info>{$depName}</info>");
             
-            if ($depPath) {
-                // Prepare connectors for the next level
-                $nextConnectors = $currentConnectors;
-                $nextConnectors[] = $index === $lastIndex ? "    " : "│   ";
-                $this->displayDependencyTree($io, $depPath, $depth + 1, $nextConnectors, $output);
-            }
+            // Prepare connectors for the next level
+            $nextConnectors = $currentConnectors;
+            $nextConnectors[] = $index === $lastIndex ? "    " : "│   ";
+            $this->displayDependencyTree($io, $depPath, $depth + 1, $nextConnectors, $output);
         }
 
-        $this->treeFinder->unmarkVisited();
+        $this->treeFinder->unmarkVisited($recipeName);
     }
 
+    /**
+     * @param array<string> $connectors
+     */
     private function writeTreeLine(SymfonyStyle $io, array $connectors, string $content): void
     {
         $prefix = implode("", $connectors);

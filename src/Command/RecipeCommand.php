@@ -16,22 +16,29 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Yaml\Yaml;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\Process\Process;
+use Symfony\Component\Console\Helper\QuestionHelper;
+use D34dman\DrupalRecipeManager\DTO\Config;
+use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
+use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
+use D34dman\DrupalRecipeManager\Helper\RecipeManagerLogger;
 
 class RecipeCommand extends Command
 {
-    protected static $defaultName = "recipe";
-    protected static $defaultDescription = "List and run Drupal recipes";
+    protected static string $defaultName = "recipe";
+    protected static string $defaultDescription = "List and run Drupal recipes";
 
-    private array $config;
-    private string $logsDir;
+    private Config $config;
     private Filesystem $filesystem;
+    private RecipeTreeFinder $recipeTreeFinder;
+    private RecipeManagerLogger $recipeLogger;
 
-    public function __construct(array $config, string $logsDir)
+    public function __construct(Config $config)
     {
         parent::__construct(self::$defaultName);
         $this->config = $config;
-        $this->logsDir = $logsDir;
         $this->filesystem = new Filesystem();
+        $this->recipeTreeFinder = new RecipeTreeFinder($config);
+        $this->recipeLogger = new RecipeManagerLogger($config);
     }
 
     protected function configure(): void
@@ -61,9 +68,8 @@ class RecipeCommand extends Command
         }
 
         // Override config with command line options if provided
-        $config = $this->config;
         if ($scanDirs = $input->getOption("scan-dirs")) {
-            $config["scanDirs"] = $scanDirs;
+            $this->config->setScanDirs($scanDirs);
         }
         if ($commandsJson = $input->getOption("commands")) {
             $commands = json_decode($commandsJson, true);
@@ -71,11 +77,13 @@ class RecipeCommand extends Command
                 $io->error("Invalid JSON format for commands option");
                 return Command::FAILURE;
             }
-            $config["commands"] = $commands;
+            if (is_array($commands)) {
+                $this->config->setCommands($commands);
+            }
         }
 
         // Find all recipe directories
-        $recipes = $this->findRecipes($output, $config);
+        $recipes = $this->recipeTreeFinder->findAllRecipes($output);
         if (empty($recipes)) {
             $io->warning("No recipes found in configured directories.");
             return Command::FAILURE;
@@ -93,7 +101,7 @@ class RecipeCommand extends Command
 
         // If a recipe is specified via command line, run it and exit
         if ($recipeName = $input->getArgument("recipe")) {
-            return $this->runRecipe($io, $recipeName, $input->getOption("command"), $recipes, $config);
+            return $this->runRecipe($io, $recipeName, $input->getOption("command"));
         }
 
         // Interactive mode
@@ -114,15 +122,16 @@ class RecipeCommand extends Command
             }
 
             // If only one command is defined, use it automatically
-            if (count($config["commands"]) === 1) {
-                $commandName = array_key_first($config["commands"]);
+            $commands = $this->config->getCommands();
+            if (count($commands) === 1) {
+                $commandName = array_key_first($commands);
                 $io->writeln(sprintf("Using command: <info>%s</info>", $commandName));
-                $this->runRecipe($io, $recipeName, $commandName, $recipes, $config);
+                $this->runRecipe($io, $recipeName, $commandName);
             } else {
                 // Otherwise, show command selection
-                $commandName = $this->selectCommand($io, $input, $output, $config);
+                $commandName = $this->selectCommand($io, $input, $output);
                 if ($commandName) {
-                    $this->runRecipe($io, $recipeName, $commandName, $recipes, $config);
+                    $this->runRecipe($io, $recipeName, $commandName);
                 }
             }
 
@@ -138,17 +147,18 @@ class RecipeCommand extends Command
         return Command::SUCCESS;
     }
 
-    private function runRecipe(SymfonyStyle $io, string $recipeName, ?string $commandName, array $recipes, array $config): int
+    private function runRecipe(SymfonyStyle $io, string $recipeName, ?string $commandName): int
     {
-        $commandName = $commandName ?? array_key_first($config["commands"]);
+        $commands = $this->config->getCommands();
+        $commandName = $commandName ?? array_key_first($commands);
 
-        if (!isset($config["commands"][$commandName])) {
+        if (!isset($commands[$commandName])) {
             $io->error("Command '{$commandName}' not found in configuration");
             return Command::FAILURE;
         }
 
-        $commandConfig = $config["commands"][$commandName];
-        $recipePath = $this->findRecipePath($recipeName, $recipes);
+        $commandConfig = $commands[$commandName];
+        $recipePath = $this->recipeTreeFinder->findRecipePath($recipeName);
 
         if (!$recipePath) {
             $io->error("Recipe '{$recipeName}' not found");
@@ -163,7 +173,7 @@ class RecipeCommand extends Command
         }
 
         // Prepare command with variables
-        $command = $this->prepareCommand($commandConfig["command"], $recipePath, $config);
+        $command = $this->prepareCommand($commandConfig["command"], $recipePath);
 
         $io->section("Running Recipe");
         $io->writeln("Recipe: <info>{$recipeName}</info>");
@@ -187,7 +197,7 @@ class RecipeCommand extends Command
             });
 
             // Log execution
-            $this->logExecution($recipeName, $commandName, $command, $process->getExitCode());
+            $this->recipeLogger->logExecution($recipeName, $commandName, $command, $process->getExitCode(), $recipePath);
 
             if ($process->getExitCode() !== 0) {
                 $io->error("Command failed with exit code {$process->getExitCode()}");
@@ -202,6 +212,10 @@ class RecipeCommand extends Command
         }
     }
 
+    /**
+     * @param array<string> $recipes
+     * @param array<string, RecipeStatus|null> $status
+     */
     private function selectRecipe(SymfonyStyle $io, InputInterface $input, OutputInterface $output, array $recipes, array $status): ?string
     {
         // Sort recipes by status (Not executed -> Failed -> Successful)
@@ -219,8 +233,8 @@ class RecipeCommand extends Command
             }
             
             // Then sort by last run timestamp within each status group
-            $timeA = $statusA["timestamp"] ?? "0";
-            $timeB = $statusB["timestamp"] ?? "0";
+            $timeA = $statusA?->getTimestamp() ?? "0";
+            $timeB = $statusB?->getTimestamp() ?? "0";
             
             return strtotime($timeB) <=> strtotime($timeA);
         });
@@ -235,7 +249,7 @@ class RecipeCommand extends Command
             $statusColor = "gray";
             
             if ($recipeStatus) {
-                $exitCode = $recipeStatus["exit_code"] ?? null;
+                $exitCode = $recipeStatus->getExitCode();
                 if ($exitCode === 0) {
                     $statusIcon = "✓";
                     $statusColor = "green";
@@ -272,6 +286,7 @@ class RecipeCommand extends Command
             return $value;
         });
 
+        /** @var QuestionHelper $helper */
         $helper = $this->getHelper("question");
         $selected = $helper->ask($input, $output, $question);
 
@@ -285,12 +300,12 @@ class RecipeCommand extends Command
         return $selected;
     }
 
-    private function selectCommand(SymfonyStyle $io, InputInterface $input, OutputInterface $output, array $config): ?string
+    private function selectCommand(SymfonyStyle $io, InputInterface $input, OutputInterface $output): ?string
     {
-        $commandChoices = array_keys($config["commands"]);
+        $commandChoices = array_keys($this->config->getCommands());
         $commandChoices[] = "Back";
         
-        $defaultCommand = $commandChoices[0];
+        $defaultCommand = $commandChoices[0] ?? "Back";
         $commandQuestion = new ChoiceQuestion(
             "Select a command to run [<comment>{$defaultCommand}</comment>]:",
             $commandChoices,
@@ -298,76 +313,39 @@ class RecipeCommand extends Command
         );
         $commandQuestion->setErrorMessage("Command %s is invalid.");
         
+        /** @var QuestionHelper $helper */
         $helper = $this->getHelper("question");
         $selectedCommand = $helper->ask($input, $output, $commandQuestion);
         
         return $selectedCommand === "Back" ? null : $selectedCommand;
     }
 
-    private function findRecipePath(string $recipe, array $recipes): ?string
-    {
-        foreach ($recipes as $recipePath) {
-            if (basename($recipePath) === $recipe) {
-                return $recipePath;
-            }
-        }
-        return null;
-    }
-
-    private function findRecipes(OutputInterface $output, array $config): array
-    {
-        $finder = new Finder();
-        $recipes = [];
-        $currentDir = getcwd();
-
-        foreach ($config["scanDirs"] as $dir) {
-            // Use relative path for directory
-            $relativeDir = $dir;
-            if (strpos($dir, $currentDir) === 0) {
-                $relativeDir = substr($dir, strlen($currentDir) + 1);
-            }
-            
-            if (!$this->filesystem->exists($relativeDir)) {
-                continue;
-            }
-
-            $finder->in($relativeDir)
-                ->files()
-                ->name("recipe.yml")
-                ->ignoreDotFiles(false)
-                ->ignoreVCS(false)
-                ->depth(">= 0");
-
-            foreach ($finder as $file) {
-                // Get relative path from current directory
-                $recipePath = dirname($file->getPathname());
-                $recipeName = basename($recipePath);
-                
-                // Only add the recipe if it hasn't been added before
-                if (!isset($recipes[$recipeName])) {
-                    $recipes[$recipeName] = $recipePath;
-                }
-            }
-        }
-
-        // Convert associative array to indexed array for compatibility
-        return array_values($recipes);
-    }
-
+    /**
+     * @return array<string, RecipeStatus>
+     */
     private function loadRecipeStatus(): array
     {
-        $statusFile = $this->logsDir . "/recipe_status.yaml";
+        $statusFile = $this->config->getLogsDir() . "/recipe_status.yaml";
         if (!$this->filesystem->exists($statusFile)) {
             return [];
         }
 
         try {
-            return Yaml::parseFile($statusFile) ?? [];
+            $data = Yaml::parseFile($statusFile) ?? [];
+            $status = [];
+            foreach ($data as $recipe => $recipeData) {
+                $status[$recipe] = RecipeStatus::fromArray($recipeData);
+            }
+            return $status;
         } catch (\Exception $e) {
             return [];
         }
     }
 
+    /**
+     * @param array<string> $recipes
+     * @param array<string, RecipeStatus> $status
+     */
     private function displaySummary(SymfonyStyle $io, array $recipes, array $status): void
     {
         $successCount = 0;
@@ -381,7 +359,7 @@ class RecipeCommand extends Command
             if (!$recipeStatus) {
                 $notExecutedCount++;
             } else {
-                $exitCode = $recipeStatus["exit_code"] ?? null;
+                $exitCode = $recipeStatus->getExitCode();
                 if ($exitCode === 0) {
                     $successCount++;
                 } elseif ($exitCode !== null) {
@@ -404,6 +382,10 @@ class RecipeCommand extends Command
         );
     }
 
+    /**
+     * @param array<string> $recipes
+     * @param array<string, RecipeStatus> $status
+     */
     private function displayRecipeList(SymfonyStyle $io, array $recipes, array $status): void
     {
         $io->section("Available Recipes");
@@ -423,8 +405,8 @@ class RecipeCommand extends Command
             }
             
             // Then sort by last run timestamp within each status group
-            $timeA = $statusA["timestamp"] ?? "0";
-            $timeB = $statusB["timestamp"] ?? "0";
+            $timeA = $statusA?->getTimestamp() ?? "0";
+            $timeB = $statusB?->getTimestamp() ?? "0";
             
             return strtotime($timeB) <=> strtotime($timeA);
         });
@@ -439,7 +421,7 @@ class RecipeCommand extends Command
             $lastRun = "Never";
 
             if ($recipeStatus) {
-                $exitCode = $recipeStatus["exit_code"] ?? null;
+                $exitCode = $recipeStatus->getExitCode();
                 if ($exitCode === 0) {
                     $statusIcon = "✓";
                     $statusColor = "green";
@@ -448,8 +430,9 @@ class RecipeCommand extends Command
                     $statusColor = "red";
                 }
 
-                if (isset($recipeStatus["timestamp"])) {
-                    $date = new \DateTime($recipeStatus["timestamp"]);
+                $timestamp = $recipeStatus->getTimestamp();
+                if ($timestamp !== null) {
+                    $date = new \DateTime($timestamp);
                     $lastRun = $date->format("Y-m-d H:i");
                 }
             }
@@ -467,16 +450,13 @@ class RecipeCommand extends Command
         );
     }
 
-    /**
-     * Get status code for sorting (0 = success, 1 = failed, 2 = not executed)
-     */
-    private function getStatusCode(?array $status): int
+    private function getStatusCode(?RecipeStatus $status): int
     {
         if (!$status) {
             return 2; // Not executed
         }
         
-        $exitCode = $status["exit_code"] ?? null;
+        $exitCode = $status->getExitCode();
         if ($exitCode === 0) {
             return 0; // Success
         } elseif ($exitCode !== null) {
@@ -486,7 +466,7 @@ class RecipeCommand extends Command
         return 2; // Not executed
     }
 
-    private function prepareCommand(string $command, string $recipePath, array $config): string
+    private function prepareCommand(string $command, string $recipePath): string
     {
         // Ensure recipe path exists
         if (!is_dir($recipePath)) {
@@ -503,23 +483,22 @@ class RecipeCommand extends Command
             "folder_basename" => basename($recipePath),
             "folder_dirname" => dirname($recipePath),
             "folder_relative" => $recipePath,
-            "ddevRecipePath" => $recipePath
         ];
 
         // Apply custom transformations
-        foreach ($config["variables"] ?? [] as $transform) {
+        foreach ($this->config->getVariables() as $transform) {
             $inputValue = $variables[$transform["input"]] ?? $transform["input"];
             $search = preg_quote($transform["search"], "/");
             $variables[$transform["name"]] = preg_replace(
                 "/" . $search . "/",
                 $transform["replace"],
-                $inputValue
+                (string)$inputValue
             );
         }
 
         // Replace all variables in command (handle both ${variable} and {${variable}} syntax)
         foreach ($variables as $key => $value) {
-            $escapedValue = escapeshellarg($value);
+            $escapedValue = escapeshellarg((string)$value);
             // Replace ${variable}
             $command = str_replace('${' . $key . '}', $escapedValue, $command);
             // Replace {${variable}}
@@ -532,50 +511,4 @@ class RecipeCommand extends Command
         return $command;
     }
 
-    private function logExecution(string $recipe, string $commandName, string $command, int $exitCode): void
-    {
-        $timestamp = (new \DateTime())->format("c");
-        $status = $exitCode === 0 ? "success" : "failed";
-
-        // Log to command history
-        $historyFile = $this->logsDir . "/command_history.yaml";
-        $historyEntry = [
-            "timestamp" => $timestamp,
-            "recipe" => $recipe,
-            "command" => $commandName,
-            "actual_command" => $command,
-            "exit_code" => $exitCode,
-            "status" => $status
-        ];
-
-        $this->appendYaml($historyFile, $historyEntry);
-
-        // Update recipe status
-        $statusFile = $this->logsDir . "/recipe_status.yaml";
-        $statusData = $this->filesystem->exists($statusFile) ? 
-            Yaml::parseFile($statusFile) ?? [] : [];
-
-        $statusData[$recipe] = [
-            "executed" => true,
-            "exit_code" => $exitCode,
-            "timestamp" => $timestamp,
-            "directory" => $this->findRecipePath($recipe, [$recipe])
-        ];
-
-        $this->filesystem->dumpFile($statusFile, Yaml::dump($statusData));
-    }
-
-    private function appendYaml(string $file, array $data): void
-    {
-        $content = "";
-        if ($this->filesystem->exists($file)) {
-            $content = file_get_contents($file);
-            if (!empty($content)) {
-                $content .= "\n---\n";
-            }
-        }
-
-        $content .= Yaml::dump($data);
-        $this->filesystem->dumpFile($file, $content);
-    }
 } 

@@ -2,7 +2,8 @@
 
 # Directories to scan for recipes
 scanDirs:
-  - ../recipes
+  - ../recipes/contrib
+  - ../recipes/custom
   - ../web/core/recipes
 
 # Custom commands for recipe management
@@ -23,10 +24,10 @@ logsDir: ../
 # Variable transformations
 variables:
   - name: "ddevRecipePath"
-    input: "${folder}"
+    input: "folder"
     search: "^.*?recipes/"
     replace: "../recipes/"
   - name: "recipeName"
-    input: "${folder_basename}"
+    input: "folder_basename"
     search: "-"
     replace: "_"

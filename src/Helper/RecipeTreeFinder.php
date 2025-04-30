@@ -5,36 +5,49 @@ declare(strict_types=1);
 namespace D34dman\DrupalRecipeManager\Helper;
 
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Filesystem\Filesystem;
-use Symfony\Component\Finder\Finder;
 use Symfony\Component\Yaml\Yaml;
+use Symfony\Component\Filesystem\Filesystem;
+use D34dman\DrupalRecipeManager\DTO\Config;
+use Symfony\Component\Finder\Finder;
+use D34dman\DrupalRecipeManager\DTO\RecipeConfig;
 
 /**
  * Helper class for finding and handling recipe trees.
  */
 class RecipeTreeFinder
 {
-    private array $config;
-    private Filesystem $filesystem;
-    private array $recipeCache = [];
-    private array $visitedRecipes = [];
+    /** @var array<string, int> */
+    private array $visitCount = [];
 
-    public function __construct(array $config)
+    /** @var Config */
+    private Config $config;
+
+    private Filesystem $filesystem;
+
+    private readonly Finder $finder;
+
+    public function __construct(Config $config)
     {
         $this->config = $config;
         $this->filesystem = new Filesystem();
+        $this->finder = new Finder();
     }
 
     /**
      * Find all recipe directories in configured paths.
+     *
+     * @return array<string>
      */
-    public function findRecipes(OutputInterface $output): array
+    public function findRecipes(?OutputInterface $output = null): array
     {
         $finder = new Finder();
         $recipes = [];
         $currentDir = getcwd();
+        if ($currentDir === false) {
+            throw new \RuntimeException("Could not get current working directory");
+        }
 
-        foreach ($this->config["scanDirs"] as $dir) {
+        foreach ($this->config->getScanDirs() as $dir) {
             // Use relative path for directory
             $relativeDir = $dir;
             if (strpos($dir, $currentDir) === 0) {
@@ -42,6 +55,9 @@ class RecipeTreeFinder
             }
             
             if (!$this->filesystem->exists($relativeDir)) {
+                if ($output) {
+                    $output->writeln("<comment>Directory not found: {$relativeDir}</comment>");
+                }
                 continue;
             }
 
@@ -55,38 +71,99 @@ class RecipeTreeFinder
             foreach ($finder as $file) {
                 // Get relative path from current directory
                 $recipePath = dirname($file->getPathname());
-                $recipes[] = $recipePath;
+                $recipeName = basename($recipePath);
+                
+                // Only add the recipe if it hasn't been added before
+                if (!isset($recipes[$recipeName])) {
+                    $recipes[$recipeName] = $recipePath;
+                }
             }
         }
 
-        return $recipes;
+        // Convert associative array to indexed array for compatibility
+        return array_values($recipes);
     }
 
     /**
-     * Find a specific recipe path by name.
+     * @return array<string>
      */
-    public function findRecipePath(string $recipe, array $recipes): ?string
+    public function findAllRecipes(OutputInterface $output): array
     {
-        foreach ($recipes as $path) {
-            if (basename($path) === $recipe) {
-                return $path;
+        $recipes = [];
+        foreach ($this->config->getScanDirs() as $dir) {
+            if ($this->filesystem->exists($dir)) {
+                $finder = new Finder();
+                $finder->directories()->in($dir)->depth(0);
+                foreach ($finder as $file) {
+                    $recipePath = $dir . "/" . $file->getFilename();
+                    $recipes = array_merge($recipes, $this->findRecipes($output));
+                }
             }
         }
+        return array_unique($recipes);
+    }
+
+    public function loadRecipeConfig(string $recipePath): ?RecipeConfig
+    {
+        $configFile = $recipePath . "/recipe.yml";
+        if (!$this->filesystem->exists($configFile)) {
+            return null;
+        }
+
+        try {
+            $config = Yaml::parseFile($configFile);
+            if (!is_array($config)) {
+                return null;
+            }
+
+            return new RecipeConfig(
+                name: basename($recipePath),
+                label: $config["name"] ?? "",
+                dependencies: $config["recipes"] ?? [],
+            );
+        } catch (\Exception) {
+            return null;
+        }
+    }
+
+    /**
+     * Find a recipe by name in the configured scan directories
+     *
+     * @param string $recipeName The name of the recipe to find
+     * @return string|null The path to the recipe directory or null if not found
+     */
+    public function findRecipePath(string $recipeName): ?string
+    {
+        // Create a new Finder instance to avoid caching issues
+        $finder = new Finder();
+        $finder->directories()
+            ->in($this->config->getScanDirs())
+            ->name($recipeName)
+            ->depth(0);
+
+        if (!$finder->hasResults()) {
+            return null;
+        }
+
+        foreach ($finder as $dir) {
+            return $dir->getPathname();
+        }
+
         return null;
     }
 
     /**
      * Get dependencies for a specific recipe.
+     *
+     * @return array<string>
      */
     public function getRecipeDependencies(string $recipePath): array
     {
-        $recipeYmlPath = $recipePath . "/recipe.yml";
-        if (!file_exists($recipeYmlPath)) {
+        $config = $this->loadRecipeConfig($recipePath);
+        if ($config === null) { 
             return [];
         }
-
-        $recipeData = Yaml::parseFile($recipeYmlPath);
-        return $recipeData["recipes"] ?? [];
+        return $config->getDependencies();
     }
 
     /**
@@ -94,7 +171,8 @@ class RecipeTreeFinder
      */
     public function isVisited(string $recipeName): bool
     {
-        return in_array($recipeName, $this->visitedRecipes);
+        $isVisited = isset($this->visitCount[$recipeName]) && $this->visitCount[$recipeName] > 0;
+        return $isVisited;
     }
 
     /**
@@ -102,14 +180,72 @@ class RecipeTreeFinder
      */
     public function markVisited(string $recipeName): void
     {
-        $this->visitedRecipes[] = $recipeName;
+        if (!isset($this->visitCount[$recipeName])) {
+            $this->visitCount[$recipeName] = 0;
+        }
+        $this->visitCount[$recipeName]++;
     }
 
     /**
      * Remove a recipe from visited list.
      */
-    public function unmarkVisited(): void
+    public function unmarkVisited(string $recipeName): void
     {
-        array_pop($this->visitedRecipes);
+        if (isset($this->visitCount[$recipeName])) {
+            $this->visitCount[$recipeName]--;
+            if ($this->visitCount[$recipeName] <= 0) {
+                unset($this->visitCount[$recipeName]);
+            }
+        }
     }
+
+    /**
+     * Find a recipe by name in the given directories.
+     *
+     * @param string $recipeName The name of the recipe to find
+     * @param array<string> $scanDirs The directories to scan
+     *
+     * @return string|null The path to the recipe directory, or null if not found
+     */
+    public function findRecipePathInDirs(string $recipeName, array $scanDirs): ?string
+    {
+        // Create a new Finder instance to avoid caching issues
+        $finder = new Finder();
+        $finder->directories()
+            ->in($scanDirs)
+            ->name($recipeName)
+            ->depth(0);
+
+        if (!$finder->hasResults()) {
+            return null;
+        }
+
+        foreach ($finder as $dir) {
+            return $dir->getRealPath();
+        }
+
+        return null;
+    }
+
+    /**
+     * Find all recipes in the given directories.
+     *
+     * @param array<string> $scanDirs The directories to scan
+     *
+     * @return array<string> List of recipe names
+     */
+    public function findAllRecipesInDirs(array $scanDirs): array
+    {
+        $this->finder->directories()
+            ->in($scanDirs)
+            ->depth(0);
+
+        $recipes = [];
+        foreach ($this->finder as $dir) {
+            $recipes[] = $dir->getBasename();
+        }
+
+        return $recipes;
+    }
+
 } 

@@ -1,18 +1,37 @@
 parameters:
     level: 8
     paths:
-        - src/
+        - src
+        - tests
     excludePaths:
         - tests/
-    checkMissingIterableValueType: false
     ignoreErrors:
-        - '#PHPDoc tag @var#'
-        - '#PHPDoc tag @param#'
-        - '#PHPDoc tag @return#'
-        - '#PHPDoc tag @throws#'
-        - '#PHPDoc tag @method#'
-        - '#PHPDoc tag @property#'
-        - '#PHPDoc tag @property-read#'
-        - '#PHPDoc tag @property-write#'
+       # -
+       #     identifier: missingType.iterableValue
+       #     message: '#Missing iterable value type#'
+       # -
+       #     identifier: PHPDoc.tag.var
+       #     message: '#PHPDoc tag @var#'
+       # -
+       #     identifier: PHPDoc.tag.param
+       #     message: '#PHPDoc tag @param#'
+       # -
+       #     identifier: PHPDoc.tag.return
+       #     message: '#PHPDoc tag @return#'
+       # -
+       #     identifier: PHPDoc.tag.throws
+       #     message: '#PHPDoc tag @throws#'
+       # -
+       #     identifier: PHPDoc.tag.method
+       #     message: '#PHPDoc tag @method#'
+       # -
+       #     identifier: PHPDoc.tag.property
+       #     message: '#PHPDoc tag @property#'
+       # -
+       #     identifier: PHPDoc.tag.property-read
+       #     message: '#PHPDoc tag @property-read#'
+       # -
+       #     identifier: PHPDoc.tag.property-write
+       #     message: '#PHPDoc tag @property-write#'
     bootstrapFiles:
         - vendor/autoload.php 

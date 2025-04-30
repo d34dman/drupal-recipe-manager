@@ -12,52 +12,96 @@ use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 use D34dman\DrupalRecipeManager\Command\RecipeCommand;
 use D34dman\DrupalRecipeManager\Command\RecipeDependencyCommand;
+use D34dman\DrupalRecipeManager\DTO\Config;
 
 class Application extends BaseApplication
 {
-    private array $config;
+    private const NAME = "Drupal Recipe Manager";
+    private const VERSION = "1.0.0";
+
     private Filesystem $filesystem;
     private string $configPath;
-    private string $logsDir;
+    private Config $config;
 
     public function __construct()
     {
-        parent::__construct("Drupal Recipe Manager", "1.0.0");
-
+        parent::__construct(self::NAME, self::VERSION);
+        $this->filesystem = new Filesystem();
         // Load configuration
-        $this->loadConfig();
-
+        $this->config = $this->loadConfig();
         // Register commands
-        $this->add(new RecipeCommand($this->config, $this->logsDir));
+        $this->add(new RecipeCommand($this->config));
         $this->add(new RecipeDependencyCommand($this->config));
     }
 
-    private function loadConfig(): void
+    private function loadConfig(): Config
     {
-        $filesystem = new Filesystem();
-        $configFile = getcwd() . "/drupal-recipe-manager.yaml";
-
-        if (!$filesystem->exists($configFile)) {
-            throw new \RuntimeException("Configuration file not found: {$configFile}");
+        $configFile = $this->findConfigFile();
+        if ($configFile !== null) {
+            try {
+                $fileConfig = Yaml::parseFile($configFile);
+                if (is_array($fileConfig)) {
+                    return Config::fromArray($fileConfig);
+                }
+            } catch (\Exception $e) {
+                // Silently ignore configuration file errors
+            }
         }
-
-        $this->config = Yaml::parseFile($configFile);
-        $this->logsDir = $this->config["logsDir"] ?? "logs";
-
-        // Ensure logs directory exists
-        if (!$filesystem->exists($this->logsDir)) {
-            $filesystem->mkdir($this->logsDir);
-        }
+        return Config::fromArray([
+            "scanDirs" => [
+                "./recipes",
+            ],
+            "logsDir" => "./logs",
+            "commands" => [
+                "drushRecipe" => [
+                    "command" => 'drush recipe ${folder} -v',
+                    "requiresFolder" => true,
+                ],
+            ],
+            "variables" => [],
+        ]);
     }
 
-    public function getConfig(): array
+    /**
+     * Find configuration file in current directory
+     * @return string|null Path to configuration file or null if not found
+     */
+    private function findConfigFile(): ?string
+    {
+        $currentDir = getcwd();
+        if ($currentDir === false) {
+            return null;
+        }
+
+        $possibleFiles = [
+            $currentDir . "/drupal-recipe-manager.yaml",
+            $currentDir . "/drupal-recipe-manager.yml"
+        ];
+
+        foreach ($possibleFiles as $file) {
+            if ($this->filesystem->exists($file)) {
+                $this->configPath = $file;
+                return $file;
+            }
+        }
+
+        return null;
+    }
+
+    public function getConfig(): Config
     {
         return $this->config;
     }
 
-    public function getLogsDir(): string
+
+    public function getConfigPath(): string
     {
-        return $this->logsDir;
+        return $this->configPath;
+    }
+
+    public function getFilesystem(): Filesystem
+    {
+        return $this->filesystem;
     }
 
     public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
@@ -67,11 +111,17 @@ class Application extends BaseApplication
             $output->writeln("<comment>Debug: Environment Information</comment>");
             $output->writeln(sprintf("  - Current directory: %s", $currentDir));
             $output->writeln(sprintf("  - Config path: %s", $this->configPath));
-            $output->writeln(sprintf("  - Logs directory: %s", $this->logsDir));
-            $output->writeln(sprintf("  - Scan directories: %s", implode(", ", $this->config["scanDirs"])));
+            $output->writeln(sprintf("  - Scan directories: %s", implode(", ", $this->config->getScanDirs())));
             $output->writeln("");
         }
 
         return parent::run($input, $output);
+    }
+
+    protected function getDefaultCommands(): array
+    {
+        $defaultCommands = parent::getDefaultCommands();
+        $defaultCommands[] = new RecipeDependencyCommand($this->config);
+        return $defaultCommands;
     }
 } 
