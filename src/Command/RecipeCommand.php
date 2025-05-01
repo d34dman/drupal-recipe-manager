@@ -5,18 +5,17 @@ declare(strict_types=1);
 namespace D34dman\DrupalRecipeManager\Command;
 
 use D34dman\DrupalRecipeManager\DTO\Config;
-use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
 use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
+use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
+use D34dman\DrupalRecipeManager\Helper\RecipeDisplayHelper;
 use D34dman\DrupalRecipeManager\Helper\RecipeManagerLogger;
 use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
-use D34dman\DrupalRecipeManager\Helper\RecipeDisplayHelper;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
 use Symfony\Component\Console\Style\SymfonyStyle;
 use Symfony\Component\Filesystem\Filesystem;
@@ -136,6 +135,7 @@ class RecipeCommand extends Command
             $recipeName = $this->displayHelper->selectRecipe($io, $input, $output, $recipes, $status, $questionHelper);
             if (!$recipeName) {
                 $io->writeln('<comment>Exiting...</comment>');
+
                 return Command::SUCCESS;
             }
 
@@ -144,18 +144,20 @@ class RecipeCommand extends Command
             foreach ($recipes as $path) {
                 if (basename($path) === $recipeName) {
                     $recipePath = $path;
+
                     break;
                 }
             }
 
             if (!$recipePath) {
                 $io->error("Recipe '{$recipeName}' not found");
+
                 continue;
             }
 
             // Run the recipe
             $result = $this->runRecipe($io, $recipeName, $input->getOption('command'));
-            if ($result !== Command::SUCCESS) {
+            if (Command::SUCCESS !== $result) {
                 $io->error("Failed to run recipe '{$recipeName}'");
             }
 
@@ -262,7 +264,7 @@ class RecipeCommand extends Command
     }
 
     /**
-     * @param array<string> $recipes
+     * @param array<string>               $recipes
      * @param array<string, RecipeStatus> $status
      */
     private function displaySummary(SymfonyStyle $io, array $recipes, array $status): void
@@ -281,9 +283,11 @@ class RecipeCommand extends Command
                 switch ($recipeStatus->getStatus()) {
                     case RecipeExecutionStatus::SUCCESS:
                         ++$successCount;
+
                         break;
                     case RecipeExecutionStatus::FAILED:
                         ++$failedCount;
+
                         break;
                     default:
                         ++$notExecutedCount;

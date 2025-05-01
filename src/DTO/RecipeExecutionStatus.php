@@ -12,27 +12,27 @@ enum RecipeExecutionStatus: string
     /**
      * Recipe has not been executed yet.
      */
-    case NOT_EXECUTED = "not_executed";
+    case NOT_EXECUTED = 'not_executed';
 
     /**
      * Recipe execution was successful.
      */
-    case SUCCESS = "success";
+    case SUCCESS = 'success';
 
     /**
      * Recipe execution failed.
      */
-    case FAILED = "failed";
+    case FAILED = 'failed';
 
     /**
      * Get the display name for the status.
      */
     public function getDisplayName(): string
     {
-        return match($this) {
-            self::NOT_EXECUTED => "Not Executed",
-            self::SUCCESS => "Success",
-            self::FAILED => "Failed",
+        return match ($this) {
+            self::NOT_EXECUTED => 'Not Executed',
+            self::SUCCESS => 'Success',
+            self::FAILED => 'Failed',
         };
     }
 
@@ -41,7 +41,7 @@ enum RecipeExecutionStatus: string
      */
     public function isCompleted(): bool
     {
-        return match($this) {
+        return match ($this) {
             self::SUCCESS, self::FAILED => true,
             default => false,
         };
@@ -52,6 +52,6 @@ enum RecipeExecutionStatus: string
      */
     public function isSuccessful(): bool
     {
-        return $this === self::SUCCESS;
+        return self::SUCCESS === $this;
     }
-} 
+}

@@ -80,12 +80,12 @@ class CommandLog
     public function toArray(): array
     {
         return [
-            "timestamp" => $this->timestamp,
-            "recipe" => $this->recipe,
-            "command" => $this->commandName,
-            "actual_command" => $this->actualCommand,
-            "exit_code" => $this->exitCode,
-            "status" => $this->status->value,
+            'timestamp' => $this->timestamp,
+            'recipe' => $this->recipe,
+            'command' => $this->commandName,
+            'actual_command' => $this->actualCommand,
+            'exit_code' => $this->exitCode,
+            'status' => $this->status->value,
         ];
     }
 
@@ -102,12 +102,12 @@ class CommandLog
     public static function fromArray(array $data): self
     {
         return new self(
-            $data["timestamp"],
-            $data["recipe"],
-            $data["command"],
-            $data["actual_command"],
-            $data["exit_code"],
-            RecipeExecutionStatus::from($data["status"])
+            $data['timestamp'],
+            $data['recipe'],
+            $data['command'],
+            $data['actual_command'],
+            $data['exit_code'],
+            RecipeExecutionStatus::from($data['status'])
         );
     }
 }

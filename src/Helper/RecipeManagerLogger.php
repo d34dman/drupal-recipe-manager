@@ -48,10 +48,10 @@ class RecipeManagerLogger
             return;
         }
 
-        $logFile = $this->config->getLogsDir() . "/recipe_history.log";
-        $timestamp = date("Y-m-d H:i:s");
+        $logFile = $this->config->getLogsDir() . '/recipe_history.log';
+        $timestamp = date('Y-m-d H:i:s');
         $status = $this->determineStatus($exitCode);
-        
+
         $logEntry = \sprintf(
             "[%s] Recipe: %s, Command: %s, Exit Code: %d, Status: %s\nCommand: %s\n\n",
             $timestamp,
@@ -74,7 +74,7 @@ class RecipeManagerLogger
             return;
         }
 
-        $statusFile = $this->config->getLogsDir() . "/recipe_status.yaml";
+        $statusFile = $this->config->getLogsDir() . '/recipe_status.yaml';
         $status = [];
 
         if (file_exists($statusFile)) {
@@ -87,12 +87,12 @@ class RecipeManagerLogger
 
         // Update the current recipe's status
         $status[$recipe] = [
-            "status" => $this->determineStatus($exitCode)->value,
-            "exit_code" => $exitCode,
-            "command" => $commandName,
-            "timestamp" => date("Y-m-d H:i:s"),
-            "recipe_path" => $recipePath,
-            "enabled_by" => null, // This recipe was enabled directly
+            'status' => $this->determineStatus($exitCode)->value,
+            'exit_code' => $exitCode,
+            'command' => $commandName,
+            'timestamp' => date('Y-m-d H:i:s'),
+            'recipe_path' => $recipePath,
+            'enabled_by' => null, // This recipe was enabled directly
         ];
 
         // If the recipe was successfully enabled (exit code 0), update dependent recipes recursively
@@ -114,7 +114,7 @@ class RecipeManagerLogger
             file_put_contents($statusFile, Yaml::dump($status));
         } catch (\Exception $e) {
             // If we can't write to the file, just log the error
-            error_log("Failed to update recipe status: " . $e->getMessage());
+            error_log('Failed to update recipe status: ' . $e->getMessage());
         }
     }
 
@@ -155,12 +155,12 @@ class RecipeManagerLogger
 
                 // Update dependent recipe status to enabled
                 $status[$dependencyName] = [
-                    "status" => RecipeExecutionStatus::SUCCESS->value,
-                    "exit_code" => 0,
-                    "command" => $commandName,
-                    "timestamp" => date("Y-m-d H:i:s"),
-                    "recipe_path" => $dependencyPath,
-                    "enabled_by" => $parentRecipe, // Track which recipe enabled this one
+                    'status' => RecipeExecutionStatus::SUCCESS->value,
+                    'exit_code' => 0,
+                    'command' => $commandName,
+                    'timestamp' => date('Y-m-d H:i:s'),
+                    'recipe_path' => $dependencyPath,
+                    'enabled_by' => $parentRecipe, // Track which recipe enabled this one
                 ];
 
                 // Recursively update this dependency's dependencies
@@ -181,7 +181,7 @@ class RecipeManagerLogger
      */
     private function determineStatus(int $exitCode): RecipeExecutionStatus
     {
-        return match($exitCode) {
+        return match ($exitCode) {
             0 => RecipeExecutionStatus::SUCCESS,
             default => RecipeExecutionStatus::FAILED,
         };

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace D34dman\DrupalRecipeManager\Helper;
 
-use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
 use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
-use Symfony\Component\Console\Style\SymfonyStyle;
+use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Question\Question;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
 class RecipeDisplayHelper
 {
@@ -55,14 +55,17 @@ class RecipeDisplayHelper
                     case RecipeExecutionStatus::SUCCESS:
                         $statusIcon = '✓';
                         $statusColor = 'green';
+
                         break;
                     case RecipeExecutionStatus::FAILED:
                         $statusIcon = '✗';
                         $statusColor = 'red';
+
                         break;
                     case RecipeExecutionStatus::NOT_EXECUTED:
                         $statusIcon = '○';
                         $statusColor = 'gray';
+
                         break;
                 }
 
@@ -132,14 +135,17 @@ class RecipeDisplayHelper
                     case RecipeExecutionStatus::SUCCESS:
                         $statusIcon = '✓';
                         $statusColor = 'green';
+
                         break;
                     case RecipeExecutionStatus::FAILED:
                         $statusIcon = '✗';
                         $statusColor = 'red';
+
                         break;
                     case RecipeExecutionStatus::NOT_EXECUTED:
                         $statusIcon = '○';
                         $statusColor = 'gray';
+
                         break;
                 }
             }
@@ -189,7 +195,7 @@ class RecipeDisplayHelper
             return 2; // Not executed
         }
 
-        return match($status->getStatus()) {
+        return match ($status->getStatus()) {
             RecipeExecutionStatus::SUCCESS => 0,
             RecipeExecutionStatus::FAILED => 1,
             RecipeExecutionStatus::NOT_EXECUTED => 2,
@@ -203,10 +209,10 @@ class RecipeDisplayHelper
         }
 
         $time = strtotime($timestamp);
-        if ($time === false) {
+        if (false === $time) {
             return 'Never';
         }
 
         return date('Y-m-d H:i:s', $time);
     }
-} 
+}

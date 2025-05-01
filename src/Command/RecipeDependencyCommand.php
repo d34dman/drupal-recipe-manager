@@ -6,10 +6,8 @@ namespace D34dman\DrupalRecipeManager\Command;
 
 use D34dman\DrupalRecipeManager\DTO\Config;
 use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
-use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
-use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
-use D34dman\DrupalRecipeManager\Helper\RecipeManagerLogger;
 use D34dman\DrupalRecipeManager\Helper\RecipeDisplayHelper;
+use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
@@ -69,6 +67,7 @@ class RecipeDependencyCommand extends Command
         $recipes = $this->treeFinder->findRecipes($output);
         if (empty($recipes)) {
             $io->warning('No recipes found in configured directories.');
+
             return Command::FAILURE;
         }
 
@@ -82,12 +81,14 @@ class RecipeDependencyCommand extends Command
             foreach ($recipes as $path) {
                 if (basename($path) === $recipeName) {
                     $recipePath = $path;
+
                     break;
                 }
             }
 
             if (!$recipePath) {
                 $io->error("Recipe '{$recipeName}' not found");
+
                 return Command::FAILURE;
             }
 
@@ -119,6 +120,7 @@ class RecipeDependencyCommand extends Command
             $recipeName = $this->displayHelper->selectRecipe($io, $input, $output, $recipes, $status, $questionHelper);
             if (!$recipeName) {
                 $io->writeln('<comment>Exiting...</comment>');
+
                 return Command::SUCCESS;
             }
 
@@ -127,12 +129,14 @@ class RecipeDependencyCommand extends Command
             foreach ($recipes as $path) {
                 if (basename($path) === $recipeName) {
                     $recipePath = $path;
+
                     break;
                 }
             }
 
             if (!$recipePath) {
                 $io->error("Recipe '{$recipeName}' not found");
+
                 continue;
             }
 
@@ -175,6 +179,7 @@ class RecipeDependencyCommand extends Command
         // Check for circular dependencies
         if ($this->treeFinder->isVisited($recipeName)) {
             $io->writeln(str_repeat('  ', $depth) . "└─ <error>Circular dependency detected: {$recipeName}</error>");
+
             return;
         }
 
@@ -231,6 +236,7 @@ class RecipeDependencyCommand extends Command
         // Check for circular dependencies
         if ($this->treeFinder->isVisited($recipeName)) {
             $this->writeTreeLine($io, $parentConnectors, "└── <error>Circular dependency detected: {$recipeName}</error>");
+
             return;
         }
 

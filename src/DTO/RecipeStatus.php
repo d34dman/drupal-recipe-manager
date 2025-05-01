@@ -74,23 +74,23 @@ class RecipeStatus
     public function toArray(): array
     {
         $data = [
-            "status" => $this->status->value,
+            'status' => $this->status->value,
         ];
 
         if (null !== $this->exitCode) {
-            $data["exit_code"] = $this->exitCode;
+            $data['exit_code'] = $this->exitCode;
         }
 
         if (null !== $this->timestamp) {
-            $data["timestamp"] = $this->timestamp;
+            $data['timestamp'] = $this->timestamp;
         }
 
         if (null !== $this->directory) {
-            $data["directory"] = $this->directory;
+            $data['directory'] = $this->directory;
         }
 
         if (null !== $this->enabledBy) {
-            $data["enabled_by"] = $this->enabledBy;
+            $data['enabled_by'] = $this->enabledBy;
         }
 
         return $data;
@@ -101,25 +101,26 @@ class RecipeStatus
      */
     public static function fromArray(array $data): self
     {
-        $status = isset($data["status"]) 
-            ? RecipeExecutionStatus::from($data["status"]) 
+        $status = isset($data['status'])
+            ? RecipeExecutionStatus::from($data['status'])
             : RecipeExecutionStatus::NOT_EXECUTED;
         // If the status is not_executed, check if the exit_code is set and set the status accordingly
-        if ($status === RecipeExecutionStatus::NOT_EXECUTED) {
-            if (isset($data["exit_code"])) {
-                if ($data["exit_code"] === 0) {
+        if (RecipeExecutionStatus::NOT_EXECUTED === $status) {
+            if (isset($data['exit_code'])) {
+                if (0 === $data['exit_code']) {
                     $status = RecipeExecutionStatus::SUCCESS;
                 } else {
                     $status = RecipeExecutionStatus::FAILED;
                 }
             }
         }
+
         return new self(
             $status,
-            $data["exit_code"] ?? null,
-            $data["timestamp"] ?? null,
-            $data["directory"] ?? null,
-            $data["enabled_by"] ?? null
+            $data['exit_code'] ?? null,
+            $data['timestamp'] ?? null,
+            $data['directory'] ?? null,
+            $data['enabled_by'] ?? null
         );
     }
 }
