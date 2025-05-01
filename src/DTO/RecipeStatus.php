@@ -104,7 +104,16 @@ class RecipeStatus
         $status = isset($data["status"]) 
             ? RecipeExecutionStatus::from($data["status"]) 
             : RecipeExecutionStatus::NOT_EXECUTED;
-
+        // If the status is not_executed, check if the exit_code is set and set the status accordingly
+        if ($status === RecipeExecutionStatus::NOT_EXECUTED) {
+            if (isset($data["exit_code"])) {
+                if ($data["exit_code"] === 0) {
+                    $status = RecipeExecutionStatus::SUCCESS;
+                } else {
+                    $status = RecipeExecutionStatus::FAILED;
+                }
+            }
+        }
         return new self(
             $status,
             $data["exit_code"] ?? null,

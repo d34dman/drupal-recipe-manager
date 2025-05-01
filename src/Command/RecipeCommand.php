@@ -9,6 +9,7 @@ use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
 use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
 use D34dman\DrupalRecipeManager\Helper\RecipeManagerLogger;
 use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
+use D34dman\DrupalRecipeManager\Helper\RecipeDisplayHelper;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\QuestionHelper;
 use Symfony\Component\Console\Input\InputArgument;
@@ -36,6 +37,8 @@ class RecipeCommand extends Command
 
     private RecipeManagerLogger $recipeLogger;
 
+    private RecipeDisplayHelper $displayHelper;
+
     public function __construct(Config $config)
     {
         parent::__construct(self::$defaultName);
@@ -43,6 +46,7 @@ class RecipeCommand extends Command
         $this->filesystem = new Filesystem();
         $this->recipeTreeFinder = new RecipeTreeFinder($config);
         $this->recipeLogger = new RecipeManagerLogger($config);
+        $this->displayHelper = new RecipeDisplayHelper();
     }
 
     protected function configure(): void
@@ -100,8 +104,10 @@ class RecipeCommand extends Command
 
         // If --list is set, just show the list and exit
         if ($input->getOption('list')) {
+            $io->section('Recipe Status Summary');
             $this->displaySummary($io, $recipes, $status);
-            $this->displayRecipeList($io, $recipes, $status);
+            $io->section('Available Recipes');
+            $this->displayHelper->displayRecipeList($io, $recipes, $status);
 
             return Command::SUCCESS;
         }
@@ -111,47 +117,54 @@ class RecipeCommand extends Command
             return $this->runRecipe($io, $recipeName, $input->getOption('command'));
         }
 
-        // Interactive mode
+        // Get the QuestionHelper
+        /** @var QuestionHelper $questionHelper */
+        $questionHelper = $this->getHelper('question');
+
+        // Interactive mode loop
         while (true) {
-            // Clear screen and show recipe list
-            $output->write("\033[2J\033[1;1H"); // ANSI escape sequence to clear screen
-            $io->title('Drupal Recipe Manager');
-            $this->displaySummary($io, $recipes, $status);
-            $this->displayRecipeList($io, $recipes, $status);
+            // Clear screen for better readability
+            $io->write("\033[2J\033[;H");
 
-            // Show quit option
-            $io->writeln("\n<comment>Press Ctrl+C to exit</comment>");
+            // Load recipe status
+            $status = $this->loadRecipeStatus();
 
-            // Ask user to select a recipe
-            $recipeName = $this->selectRecipe($io, $input, $output, $recipes, $status);
+            // Display recipe list before selection
+            $this->displayHelper->displayRecipeList($io, $recipes, $status);
+
+            // Show all recipes and let user select one
+            $recipeName = $this->displayHelper->selectRecipe($io, $input, $output, $recipes, $status, $questionHelper);
             if (!$recipeName) {
-                break; // User selected Exit
+                $io->writeln('<comment>Exiting...</comment>');
+                return Command::SUCCESS;
             }
 
-            // If only one command is defined, use it automatically
-            $commands = $this->config->getCommands();
-            if (1 === \count($commands)) {
-                $commandName = array_key_first($commands);
-                $io->writeln(\sprintf('Using command: <info>%s</info>', $commandName));
-                $this->runRecipe($io, $recipeName, $commandName);
-            } else {
-                // Otherwise, show command selection
-                $commandName = $this->selectCommand($io, $input, $output);
-                if ($commandName) {
-                    $this->runRecipe($io, $recipeName, $commandName);
+            // Find the recipe path in the list of recipes
+            $recipePath = null;
+            foreach ($recipes as $path) {
+                if (basename($path) === $recipeName) {
+                    $recipePath = $path;
+                    break;
                 }
             }
 
-            // Reload status after command execution
-            $status = $this->loadRecipeStatus();
-
-            // Ask if user wants to continue
-            if (!$io->confirm('Do you want to run another recipe?', true)) {
-                break;
+            if (!$recipePath) {
+                $io->error("Recipe '{$recipeName}' not found");
+                continue;
             }
-        }
 
-        return Command::SUCCESS;
+            // Run the recipe
+            $result = $this->runRecipe($io, $recipeName, $input->getOption('command'));
+            if ($result !== Command::SUCCESS) {
+                $io->error("Failed to run recipe '{$recipeName}'");
+            }
+
+            // Wait for user input before continuing
+            $io->newLine();
+            $io->writeln('<comment>Press Enter to continue or Ctrl+C to exit...</comment>');
+            $question = new Question('');
+            $questionHelper->ask($input, $output, $question);
+        }
     }
 
     private function runRecipe(SymfonyStyle $io, string $recipeName, ?string $commandName): int
@@ -226,120 +239,6 @@ class RecipeCommand extends Command
     }
 
     /**
-     * @param array<string>                    $recipes
-     * @param array<string, null|RecipeStatus> $status
-     */
-    private function selectRecipe(SymfonyStyle $io, InputInterface $input, OutputInterface $output, array $recipes, array $status): ?string
-    {
-        // Sort recipes by status (Not executed -> Failed -> Successful)
-        usort($recipes, function ($a, $b) use ($status) {
-            $statusA = $status[basename($a)] ?? null;
-            $statusB = $status[basename($b)] ?? null;
-
-            // Get status codes (0 = success, 1 = failed, 2 = not executed)
-            $codeA = $this->getStatusCode($statusA);
-            $codeB = $this->getStatusCode($statusB);
-
-            // First sort by status (2 -> 1 -> 0)
-            if ($codeA !== $codeB) {
-                return $codeB <=> $codeA; // Reverse order to get 2,1,0
-            }
-
-            // Then sort by last run timestamp within each status group
-            $timeA = $statusA?->getTimestamp() ?? '0';
-            $timeB = $statusB?->getTimestamp() ?? '0';
-
-            return strtotime($timeB) <=> strtotime($timeA);
-        });
-
-        // Create a map of recipe names to their full paths and display strings
-        $recipeMap = [];
-        $displayMap = [];
-        foreach ($recipes as $recipe) {
-            $recipeName = basename($recipe);
-            $recipeStatus = $status[$recipeName] ?? null;
-            $statusIcon = '○';
-            $statusColor = 'gray';
-
-            if ($recipeStatus) {
-                switch ($recipeStatus->getStatus()) {
-                    case RecipeExecutionStatus::SUCCESS:
-                        $statusIcon = '✓';
-                        $statusColor = 'green';
-                        break;
-                    case RecipeExecutionStatus::FAILED:
-                        $statusIcon = '✗';
-                        $statusColor = 'red';
-                        break;
-                    case RecipeExecutionStatus::NOT_EXECUTED:
-                        $statusIcon = '○';
-                        $statusColor = 'gray';
-                        break;
-                }
-            }
-
-            $recipeMap[$recipeName] = $recipe;
-            $displayMap[$recipeName] = "<fg={$statusColor}>{$statusIcon} {$recipeName}</>";
-        }
-
-        // Get the first recipe name as default
-        $firstRecipe = array_key_first($recipeMap);
-
-        // Create autocomplete suggestions (plain recipe names for matching)
-        $suggestions = array_keys($recipeMap);
-
-        // Create a custom question with autocomplete and default value
-        $question = new Question("Search and select a recipe [<comment>{$firstRecipe}</comment>]: ", $firstRecipe);
-        $question->setAutocompleterValues($suggestions);
-        $question->setValidator(function ($value) use ($recipeMap) {
-            // Handle empty input or null
-            if (null === $value || '' === $value) {
-                return null;
-            }
-
-            // Validate recipe exists
-            if (!isset($recipeMap[$value])) {
-                throw new \RuntimeException("Recipe not found: {$value}");
-            }
-
-            return $value;
-        });
-
-        /** @var QuestionHelper $helper */
-        $helper = $this->getHelper('question');
-        $selected = $helper->ask($input, $output, $question);
-
-        if (null === $selected) {
-            return null;
-        }
-
-        // Display the selected recipe with its colored format
-        $io->writeln($displayMap[$selected]);
-
-        return $selected;
-    }
-
-    private function selectCommand(SymfonyStyle $io, InputInterface $input, OutputInterface $output): ?string
-    {
-        $commandChoices = array_keys($this->config->getCommands());
-        $commandChoices[] = 'Back';
-
-        $defaultCommand = $commandChoices[0] ?? 'Back';
-        $commandQuestion = new ChoiceQuestion(
-            "Select a command to run [<comment>{$defaultCommand}</comment>]:",
-            $commandChoices,
-            0  // Preselect first command option
-        );
-        $commandQuestion->setErrorMessage('Command %s is invalid.');
-
-        /** @var QuestionHelper $helper */
-        $helper = $this->getHelper('question');
-        $selectedCommand = $helper->ask($input, $output, $commandQuestion);
-
-        return 'Back' === $selectedCommand ? null : $selectedCommand;
-    }
-
-    /**
      * @return array<string, RecipeStatus>
      */
     private function loadRecipeStatus(): array
@@ -363,7 +262,7 @@ class RecipeCommand extends Command
     }
 
     /**
-     * @param array<string>               $recipes
+     * @param array<string> $recipes
      * @param array<string, RecipeStatus> $status
      */
     private function displaySummary(SymfonyStyle $io, array $recipes, array $status): void
@@ -392,116 +291,15 @@ class RecipeCommand extends Command
             }
         }
 
-        $io->section("Recipe Status Summary");
         $io->table(
-            ["Status", "Count"],
+            ['Status', 'Count'],
             [
-                ["<fg=green>✓ Successfully executed</>", $successCount],
-                ["<fg=red>✗ Failed executions</>", $failedCount],
-                ["<fg=gray>○ Not executed yet</>", $notExecutedCount],
-                ["<fg=blue>Total</>", \count($recipes)],
+                ['<fg=green>✓ Successfully executed</>', $successCount],
+                ['<fg=red>✗ Failed executions</>', $failedCount],
+                ['<fg=gray>○ Not executed yet</>', $notExecutedCount],
+                ['<fg=blue>Total</>', \count($recipes)],
             ]
         );
-    }
-
-    /**
-     * @param array<string>               $recipes
-     * @param array<string, RecipeStatus> $status
-     */
-    private function displayRecipeList(SymfonyStyle $io, array $recipes, array $status): void
-    {
-        $io->section("Available Recipes");
-
-        // Sort recipes by status
-        usort($recipes, function ($a, $b) use ($status) {
-            $statusA = $status[basename($a)] ?? null;
-            $statusB = $status[basename($b)] ?? null;
-
-            // Get status priority (lower number = higher priority)
-            $priorityA = $this->getStatusPriority($statusA);
-            $priorityB = $this->getStatusPriority($statusB);
-
-            // First sort by status priority
-            if ($priorityA !== $priorityB) {
-                return $priorityA <=> $priorityB;
-            }
-
-            // Then sort by last run timestamp within each status group
-            $timeA = $statusA?->getTimestamp() ?? "0";
-            $timeB = $statusB?->getTimestamp() ?? "0";
-
-            return strtotime($timeB) <=> strtotime($timeA);
-        });
-
-        $rows = [];
-        foreach ($recipes as $recipe) {
-            $recipeName = basename($recipe);
-            $recipeStatus = $status[$recipeName] ?? null;
-
-            $statusIcon = "○";
-            $statusColor = "gray";
-            $lastRun = "Never";
-
-            if ($recipeStatus) {
-                switch ($recipeStatus->getStatus()) {
-                    case RecipeExecutionStatus::SUCCESS:
-                        $statusIcon = "✓";
-                        $statusColor = "green";
-                        break;
-                    case RecipeExecutionStatus::FAILED:
-                        $statusIcon = "✗";
-                        $statusColor = "red";
-                        break;
-                    case RecipeExecutionStatus::NOT_EXECUTED:
-                        $statusIcon = "○";
-                        $statusColor = "gray";
-                        break;
-                }
-
-                $timestamp = $recipeStatus->getTimestamp();
-                if (null !== $timestamp) {
-                    $date = new \DateTime($timestamp);
-                    $lastRun = $date->format("Y-m-d H:i");
-                }
-            }
-
-            $rows[] = [
-                "<fg={$statusColor}>{$statusIcon}</>",
-                "<fg={$statusColor}>{$recipeName}</>",
-                $lastRun,
-            ];
-        }
-
-        $io->table(
-            ["Status", "Recipe", "Last Run"],
-            $rows
-        );
-    }
-
-    private function getStatusPriority(?RecipeStatus $status): int
-    {
-        if (!$status) {
-            return 2; // Not executed (lowest priority)
-        }
-
-        return match($status->getStatus()) {
-            RecipeExecutionStatus::FAILED => 0,
-            RecipeExecutionStatus::SUCCESS => 1,
-            RecipeExecutionStatus::NOT_EXECUTED => 2,
-        };
-    }
-
-    private function getStatusCode(?RecipeStatus $status): int
-    {
-        if (!$status) {
-            return 2; // Not executed
-        }
-
-        return match($status->getStatus()) {
-            RecipeExecutionStatus::SUCCESS => 0,
-            RecipeExecutionStatus::FAILED => 1,
-            RecipeExecutionStatus::NOT_EXECUTED => 2,
-        };
     }
 
     private function prepareCommand(string $command, string $recipePath): string
