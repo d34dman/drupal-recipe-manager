@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace D34dman\DrupalRecipeManager\Helper;
 
 use D34dman\DrupalRecipeManager\DTO\Config;
+use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
 use Symfony\Component\Yaml\Yaml;
 
 /**
@@ -47,14 +48,17 @@ class RecipeManagerLogger
             return;
         }
 
-        $logFile = $this->config->getLogsDir() . '/recipe_history.log';
-        $timestamp = date('Y-m-d H:i:s');
+        $logFile = $this->config->getLogsDir() . "/recipe_history.log";
+        $timestamp = date("Y-m-d H:i:s");
+        $status = $this->determineStatus($exitCode);
+        
         $logEntry = \sprintf(
-            "[%s] Recipe: %s, Command: %s, Exit Code: %d\nCommand: %s\n\n",
+            "[%s] Recipe: %s, Command: %s, Exit Code: %d, Status: %s\nCommand: %s\n\n",
             $timestamp,
             $recipe,
             $commandName,
             $exitCode,
+            $status->value,
             $command
         );
 
@@ -70,7 +74,7 @@ class RecipeManagerLogger
             return;
         }
 
-        $statusFile = $this->config->getLogsDir() . '/recipe_status.yaml';
+        $statusFile = $this->config->getLogsDir() . "/recipe_status.yaml";
         $status = [];
 
         if (file_exists($statusFile)) {
@@ -83,11 +87,12 @@ class RecipeManagerLogger
 
         // Update the current recipe's status
         $status[$recipe] = [
-            'exit_code' => $exitCode,
-            'command' => $commandName,
-            'timestamp' => date('Y-m-d H:i:s'),
-            'recipe_path' => $recipePath,
-            'enabled_by' => null, // This recipe was enabled directly
+            "status" => $this->determineStatus($exitCode)->value,
+            "exit_code" => $exitCode,
+            "command" => $commandName,
+            "timestamp" => date("Y-m-d H:i:s"),
+            "recipe_path" => $recipePath,
+            "enabled_by" => null, // This recipe was enabled directly
         ];
 
         // If the recipe was successfully enabled (exit code 0), update dependent recipes recursively
@@ -109,7 +114,7 @@ class RecipeManagerLogger
             file_put_contents($statusFile, Yaml::dump($status));
         } catch (\Exception $e) {
             // If we can't write to the file, just log the error
-            error_log('Failed to update recipe status: ' . $e->getMessage());
+            error_log("Failed to update recipe status: " . $e->getMessage());
         }
     }
 
@@ -150,11 +155,12 @@ class RecipeManagerLogger
 
                 // Update dependent recipe status to enabled
                 $status[$dependencyName] = [
-                    'exit_code' => 0,
-                    'command' => $commandName,
-                    'timestamp' => date('Y-m-d H:i:s'),
-                    'recipe_path' => $dependencyPath,
-                    'enabled_by' => $parentRecipe, // Track which recipe enabled this one
+                    "status" => RecipeExecutionStatus::SUCCESS->value,
+                    "exit_code" => 0,
+                    "command" => $commandName,
+                    "timestamp" => date("Y-m-d H:i:s"),
+                    "recipe_path" => $dependencyPath,
+                    "enabled_by" => $parentRecipe, // Track which recipe enabled this one
                 ];
 
                 // Recursively update this dependency's dependencies
@@ -168,5 +174,16 @@ class RecipeManagerLogger
                 );
             }
         }
+    }
+
+    /**
+     * Determine the execution status based on exit code.
+     */
+    private function determineStatus(int $exitCode): RecipeExecutionStatus
+    {
+        return match($exitCode) {
+            0 => RecipeExecutionStatus::SUCCESS,
+            default => RecipeExecutionStatus::FAILED,
+        };
     }
 }

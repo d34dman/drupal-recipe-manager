@@ -9,7 +9,7 @@ namespace D34dman\DrupalRecipeManager\DTO;
  */
 class RecipeStatus
 {
-    private bool $executed;
+    private RecipeExecutionStatus $status;
 
     private ?int $exitCode;
 
@@ -20,22 +20,32 @@ class RecipeStatus
     private ?string $enabledBy;
 
     public function __construct(
-        bool $executed = false,
+        RecipeExecutionStatus $status = RecipeExecutionStatus::NOT_EXECUTED,
         ?int $exitCode = null,
         ?string $timestamp = null,
         ?string $directory = null,
         ?string $enabledBy = null
     ) {
-        $this->executed = $executed;
+        $this->status = $status;
         $this->exitCode = $exitCode;
         $this->timestamp = $timestamp;
         $this->directory = $directory;
         $this->enabledBy = $enabledBy;
     }
 
+    public function getStatus(): RecipeExecutionStatus
+    {
+        return $this->status;
+    }
+
     public function isExecuted(): bool
     {
-        return $this->executed;
+        return $this->status->isCompleted();
+    }
+
+    public function isSuccessful(): bool
+    {
+        return $this->status->isSuccessful();
     }
 
     public function getExitCode(): ?int
@@ -59,44 +69,48 @@ class RecipeStatus
     }
 
     /**
-     * @return array{executed: bool, exit_code?: null|int, timestamp?: null|string, directory?: null|string, enabled_by?: null|string}
+     * @return array{status: string, exit_code?: null|int, timestamp?: null|string, directory?: null|string, enabled_by?: null|string}
      */
     public function toArray(): array
     {
         $data = [
-            'executed' => $this->executed,
+            "status" => $this->status->value,
         ];
 
         if (null !== $this->exitCode) {
-            $data['exit_code'] = $this->exitCode;
+            $data["exit_code"] = $this->exitCode;
         }
 
         if (null !== $this->timestamp) {
-            $data['timestamp'] = $this->timestamp;
+            $data["timestamp"] = $this->timestamp;
         }
 
         if (null !== $this->directory) {
-            $data['directory'] = $this->directory;
+            $data["directory"] = $this->directory;
         }
 
         if (null !== $this->enabledBy) {
-            $data['enabled_by'] = $this->enabledBy;
+            $data["enabled_by"] = $this->enabledBy;
         }
 
         return $data;
     }
 
     /**
-     * @param array{executed?: bool, exit_code?: null|int, timestamp?: null|string, directory?: null|string, enabled_by?: null|string} $data
+     * @param array{status?: string, exit_code?: null|int, timestamp?: null|string, directory?: null|string, enabled_by?: null|string} $data
      */
     public static function fromArray(array $data): self
     {
+        $status = isset($data["status"]) 
+            ? RecipeExecutionStatus::from($data["status"]) 
+            : RecipeExecutionStatus::NOT_EXECUTED;
+
         return new self(
-            $data['executed'] ?? false,
-            $data['exit_code'] ?? null,
-            $data['timestamp'] ?? null,
-            $data['directory'] ?? null,
-            $data['enabled_by'] ?? null
+            $status,
+            $data["exit_code"] ?? null,
+            $data["timestamp"] ?? null,
+            $data["directory"] ?? null,
+            $data["enabled_by"] ?? null
         );
     }
 }

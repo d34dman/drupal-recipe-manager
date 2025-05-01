@@ -6,6 +6,7 @@ namespace D34dman\DrupalRecipeManager\Command;
 
 use D34dman\DrupalRecipeManager\DTO\Config;
 use D34dman\DrupalRecipeManager\DTO\RecipeStatus;
+use D34dman\DrupalRecipeManager\DTO\RecipeExecutionStatus;
 use D34dman\DrupalRecipeManager\Helper\RecipeManagerLogger;
 use D34dman\DrupalRecipeManager\Helper\RecipeTreeFinder;
 use Symfony\Component\Console\Command\Command;
@@ -261,13 +262,19 @@ class RecipeCommand extends Command
             $statusColor = 'gray';
 
             if ($recipeStatus) {
-                $exitCode = $recipeStatus->getExitCode();
-                if (0 === $exitCode) {
-                    $statusIcon = '✓';
-                    $statusColor = 'green';
-                } elseif (null !== $exitCode) {
-                    $statusIcon = '✗';
-                    $statusColor = 'red';
+                switch ($recipeStatus->getStatus()) {
+                    case RecipeExecutionStatus::SUCCESS:
+                        $statusIcon = '✓';
+                        $statusColor = 'green';
+                        break;
+                    case RecipeExecutionStatus::FAILED:
+                        $statusIcon = '✗';
+                        $statusColor = 'red';
+                        break;
+                    case RecipeExecutionStatus::NOT_EXECUTED:
+                        $statusIcon = '○';
+                        $statusColor = 'gray';
+                        break;
                 }
             }
 
@@ -372,25 +379,27 @@ class RecipeCommand extends Command
             if (!$recipeStatus) {
                 ++$notExecutedCount;
             } else {
-                $exitCode = $recipeStatus->getExitCode();
-                if (0 === $exitCode) {
-                    ++$successCount;
-                } elseif (null !== $exitCode) {
-                    ++$failedCount;
-                } else {
-                    ++$notExecutedCount;
+                switch ($recipeStatus->getStatus()) {
+                    case RecipeExecutionStatus::SUCCESS:
+                        ++$successCount;
+                        break;
+                    case RecipeExecutionStatus::FAILED:
+                        ++$failedCount;
+                        break;
+                    default:
+                        ++$notExecutedCount;
                 }
             }
         }
 
-        $io->section('Recipe Status Summary');
+        $io->section("Recipe Status Summary");
         $io->table(
-            ['Status', 'Count'],
+            ["Status", "Count"],
             [
-                ['<fg=green>✓ Successfully executed</>', $successCount],
-                ['<fg=red>✗ Failed executions</>', $failedCount],
-                ['<fg=gray>○ Not executed yet</>', $notExecutedCount],
-                ['<fg=blue>Total</>', \count($recipes)],
+                ["<fg=green>✓ Successfully executed</>", $successCount],
+                ["<fg=red>✗ Failed executions</>", $failedCount],
+                ["<fg=gray>○ Not executed yet</>", $notExecutedCount],
+                ["<fg=blue>Total</>", \count($recipes)],
             ]
         );
     }
@@ -401,25 +410,25 @@ class RecipeCommand extends Command
      */
     private function displayRecipeList(SymfonyStyle $io, array $recipes, array $status): void
     {
-        $io->section('Available Recipes');
+        $io->section("Available Recipes");
 
-        // Sort recipes by status (Not executed -> Failed -> Successful)
+        // Sort recipes by status
         usort($recipes, function ($a, $b) use ($status) {
             $statusA = $status[basename($a)] ?? null;
             $statusB = $status[basename($b)] ?? null;
 
-            // Get status codes (0 = success, 1 = failed, 2 = not executed)
-            $codeA = $this->getStatusCode($statusA);
-            $codeB = $this->getStatusCode($statusB);
+            // Get status priority (lower number = higher priority)
+            $priorityA = $this->getStatusPriority($statusA);
+            $priorityB = $this->getStatusPriority($statusB);
 
-            // First sort by status (2 -> 1 -> 0)
-            if ($codeA !== $codeB) {
-                return $codeB <=> $codeA; // Reverse order to get 2,1,0
+            // First sort by status priority
+            if ($priorityA !== $priorityB) {
+                return $priorityA <=> $priorityB;
             }
 
             // Then sort by last run timestamp within each status group
-            $timeA = $statusA?->getTimestamp() ?? '0';
-            $timeB = $statusB?->getTimestamp() ?? '0';
+            $timeA = $statusA?->getTimestamp() ?? "0";
+            $timeB = $statusB?->getTimestamp() ?? "0";
 
             return strtotime($timeB) <=> strtotime($timeA);
         });
@@ -429,24 +438,30 @@ class RecipeCommand extends Command
             $recipeName = basename($recipe);
             $recipeStatus = $status[$recipeName] ?? null;
 
-            $statusIcon = '○';
-            $statusColor = 'gray';
-            $lastRun = 'Never';
+            $statusIcon = "○";
+            $statusColor = "gray";
+            $lastRun = "Never";
 
             if ($recipeStatus) {
-                $exitCode = $recipeStatus->getExitCode();
-                if (0 === $exitCode) {
-                    $statusIcon = '✓';
-                    $statusColor = 'green';
-                } elseif (null !== $exitCode) {
-                    $statusIcon = '✗';
-                    $statusColor = 'red';
+                switch ($recipeStatus->getStatus()) {
+                    case RecipeExecutionStatus::SUCCESS:
+                        $statusIcon = "✓";
+                        $statusColor = "green";
+                        break;
+                    case RecipeExecutionStatus::FAILED:
+                        $statusIcon = "✗";
+                        $statusColor = "red";
+                        break;
+                    case RecipeExecutionStatus::NOT_EXECUTED:
+                        $statusIcon = "○";
+                        $statusColor = "gray";
+                        break;
                 }
 
                 $timestamp = $recipeStatus->getTimestamp();
                 if (null !== $timestamp) {
                     $date = new \DateTime($timestamp);
-                    $lastRun = $date->format('Y-m-d H:i');
+                    $lastRun = $date->format("Y-m-d H:i");
                 }
             }
 
@@ -458,9 +473,22 @@ class RecipeCommand extends Command
         }
 
         $io->table(
-            ['Status', 'Recipe', 'Last Run'],
+            ["Status", "Recipe", "Last Run"],
             $rows
         );
+    }
+
+    private function getStatusPriority(?RecipeStatus $status): int
+    {
+        if (!$status) {
+            return 2; // Not executed (lowest priority)
+        }
+
+        return match($status->getStatus()) {
+            RecipeExecutionStatus::FAILED => 0,
+            RecipeExecutionStatus::SUCCESS => 1,
+            RecipeExecutionStatus::NOT_EXECUTED => 2,
+        };
     }
 
     private function getStatusCode(?RecipeStatus $status): int
@@ -469,14 +497,11 @@ class RecipeCommand extends Command
             return 2; // Not executed
         }
 
-        $exitCode = $status->getExitCode();
-        if (0 === $exitCode) {
-            return 0; // Success
-        } elseif (null !== $exitCode) {
-            return 1; // Failed
-        }
-
-        return 2; // Not executed
+        return match($status->getStatus()) {
+            RecipeExecutionStatus::SUCCESS => 0,
+            RecipeExecutionStatus::FAILED => 1,
+            RecipeExecutionStatus::NOT_EXECUTED => 2,
+        };
     }
 
     private function prepareCommand(string $command, string $recipePath): string
